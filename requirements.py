@@ -1,0 +1,8 @@
+#pip install mssql-cli
+#pip install sqlalchemy
+#pip install openpyxl
+
+streamlit
+pandas
+pyodbc
+openpyxl
