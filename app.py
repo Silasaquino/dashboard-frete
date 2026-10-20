@@ -183,11 +183,11 @@ else:
     
     st.sidebar.write("---")
 
-    # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS (BASE REVERSA) ---
+   # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS (BASE REVERSA) ---
     @st.cache_data(ttl=3600)
     def carregar_dados_reversa():
         SHEET_ID_REVERSA = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
-        SHEET_NAME_REVERSA = "Página1"
+        SHEET_NAME_REVERSA = "BASE"
         
         url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME_REVERSA}"
         
