@@ -4,7 +4,7 @@ import urllib.parse
 import urllib.request
 import warnings
 import pandas as pd
-import pyodbc
+import psycopg2
 import streamlit as st
 
 # Desativa avisos desnecessários no terminal
@@ -184,28 +184,39 @@ else:
     
     st.sidebar.write("---")
 
-    # --- CARREGAMENTO DE DADOS OTIMIZADO DO REDSHIFT (REVERSA) ---
+   # --- CARREGAMENTO DE DADOS OTIMIZADO DO REDSHIFT (REVERSA VIA PSYCOPG2) ---
     @st.cache_data(ttl=3600)
     def carregar_dados_reversa():
-        driver = "Amazon Redshift ODBC Driver (x64)"
+        # Valores padrão (fallback)
         server = "gfg-dwh-prod.dafiti.io"
         porta = "5439"
         database = "dftdwh"
         username = "silasaquino"
         password = "OVpnlp09"
 
-        string_conexao = (
-            f"DRIVER={{{driver}}};"
-            f"SERVER={server};"
-            f"PORT={porta};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=yes;"
-        )
+        # Tenta ler do secrets apenas se o ficheiro/configuração existir
+        try:
+            if "REDSHIFT_HOST" in st.secrets:
+                server = st.secrets["REDSHIFT_HOST"]
+            if "REDSHIFT_PORT" in st.secrets:
+                porta = st.secrets["REDSHIFT_PORT"]
+            if "REDSHIFT_DB" in st.secrets:
+                database = st.secrets["REDSHIFT_DB"]
+            if "REDSHIFT_USER" in st.secrets:
+                username = st.secrets["REDSHIFT_USER"]
+            if "REDSHIFT_PASSWORD" in st.secrets:
+                password = st.secrets["REDSHIFT_PASSWORD"]
+        except Exception:
+            # Se não houver ficheiro secrets.toml localmente, utiliza os valores padrão sem interromper a execução
+            pass
 
-        conexao = pyodbc.connect(string_conexao)
+        conexao = psycopg2.connect(
+            host=server,
+            port=porta,
+            dbname=database,
+            user=username,
+            password=password
+        )
 
         query = """
             SELECT 
@@ -623,5 +634,4 @@ else:
         st.write("")
         st.write("---")
         st.info("ℹ️ A área de Vendas está configurada e pronta para receber a nova consulta SQL e indicadores do Redshift.")
-
 #streamlit run app.py

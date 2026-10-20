@@ -6,3 +6,4 @@ streamlit
 pandas
 pyodbc
 openpyxl
+psycopg2-binary
