@@ -1,7 +1,9 @@
 #pip install mssql-cli
 #pip install sqlalchemy
 #pip install openpyxl
-
+#streamlit run app.py
+# pip install gspread
+# pip install google-auth-oauthlib
 streamlit
 pandas
 openpyxl
