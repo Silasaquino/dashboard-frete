@@ -4,7 +4,6 @@ import urllib.parse
 import urllib.request
 import warnings
 import pandas as pd
-import psycopg2
 import streamlit as st
 
 # Desativa avisos desnecessários no terminal
@@ -35,7 +34,7 @@ URL_WEBAPP_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyvMmlYokWB2
 
 @st.cache_data(ttl=600)
 def carregar_credenciais_google():
-    """Lê a folha do Google Sheets (Página1) com cache de 10 minutos."""
+    """Lê a folha do Google Sheets com cache de 10 minutos."""
     try:
         requisicao = urllib.request.Request(
             URL_CSV_GOOGLE_SHEETS,
@@ -184,97 +183,22 @@ else:
     
     st.sidebar.write("---")
 
-   # --- CARREGAMENTO DE DADOS OTIMIZADO DO REDSHIFT (REVERSA VIA PSYCOPG2) ---
+    # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS (BASE REVERSA) ---
     @st.cache_data(ttl=3600)
     def carregar_dados_reversa():
-        # Valores padrão (fallback)
-        server = "gfg-dwh-prod.dafiti.io"
-        porta = "5439"
-        database = "dftdwh"
-        username = "silasaquino"
-        password = "OVpnlp09"
-
-        # Tenta ler do secrets apenas se o ficheiro/configuração existir
+        SHEET_ID_REVERSA = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
+        SHEET_NAME_REVERSA = "Página1"
+        
+        url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME_REVERSA}"
+        
         try:
-            if "REDSHIFT_HOST" in st.secrets:
-                server = st.secrets["REDSHIFT_HOST"]
-            if "REDSHIFT_PORT" in st.secrets:
-                porta = st.secrets["REDSHIFT_PORT"]
-            if "REDSHIFT_DB" in st.secrets:
-                database = st.secrets["REDSHIFT_DB"]
-            if "REDSHIFT_USER" in st.secrets:
-                username = st.secrets["REDSHIFT_USER"]
-            if "REDSHIFT_PASSWORD" in st.secrets:
-                password = st.secrets["REDSHIFT_PASSWORD"]
-        except Exception:
-            # Se não houver ficheiro secrets.toml localmente, utiliza os valores padrão sem interromper a execução
-            pass
+            df_resultado = pd.read_csv(url_csv)
+            return df_resultado
+        except Exception as e:
+            st.error(f"Erro ao carregar dados da folha 'BASE REVERSA': {e}")
+            return pd.DataFrame()
 
-        conexao = psycopg2.connect(
-            host=server,
-            port=porta,
-            dbname=database,
-            user=username,
-            password=password
-        )
-
-        query = """
-            SELECT 
-                return_order_date as data_solicitacao,
-                left (return_order_date,7) as mes_ano_solicitacao,
-                type_request_king as tipo_solicitacao,
-                seller_name,
-                delivery_type as tipo_processo,
-                etl_load_date as ultima_atualizacao_tabela,
-                sale_order_store_number as pedido, 
-                return_delivery_number as remessa_retorno,
-                reason as motivo_troca,
-                definition_tracking as auto_postagem,
-                object_tag_number as object_tag_number,
-                history_status_description as status_rastreio,
-                history_update_date as data_postagem,
-                object_update_date as data_ultimo_status_correios,
-                object_status_description as ultimo_status_correios,
-                protocol as protocolo,
-                product_code_store as sku,
-                SUM(original_item_quantity_order) as quantidade,
-                SUM(reverse_amount) as valor_retorno,
-                rem_date as data_rem,
-                der_date as data_der,
-                status_date_loss as data_extravio,
-                left (coalesce (rem_date::date,der_date::date,status_date_loss::date),7) as mes_ano_finalizacao
-            FROM curated_data.a_operation_returns
-            WHERE 
-              delivery_type IN ('MILKRUN','DAFITI_ENVIOS','DROPSHIPPING')  
-              AND return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
-            GROUP BY 
-                return_order_date,
-                type_request_king,
-                seller_name,
-                delivery_type,
-                etl_load_date,
-                sale_order_store_number, 
-                return_delivery_number,
-                reason,
-                definition_tracking,
-                object_tag_number,
-                history_status_description,
-                history_update_date,
-                object_update_date,
-                object_status_description,
-                protocol,
-                product_code_store,
-                rem_date,
-                der_date,
-                status_date_loss
-        """
-
-        df_resultado = pd.read_sql(query, conexao)
-        conexao.close()
-
-        return df_resultado
-
-    with st.spinner("⏳ A carregar dados do Redshift..."):
+    with st.spinner("⏳ A carregar dados da Operação Reversa..."):
         df_raw_reversa = carregar_dados_reversa()
 
     df_filtrado_reversa = df_raw_reversa.copy()
@@ -560,7 +484,7 @@ else:
         st.write("")
         st.write("---")
 
-        # ÁREA DE DOWNLOAD (GARANTINDO A EXIBIÇÃO DO BOTÃO NA TELA)
+        # ÁREA DE DOWNLOAD
         st.markdown(
             f"<h3 style='text-align: center;'>📥 Baixar Relatório ({empresa_usuario})</h3>", 
             unsafe_allow_html=True
@@ -574,12 +498,10 @@ else:
 
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
-            # Gera os dados em formato CSV (conversão instantânea e sem falhas)
             dados_csv = converter_df_para_csv(df_filtrado_reversa)
             
             nome_arquivo_csv = f"relatorio_reversa_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
 
-            # BOTÃO DE DOWNLOAD GARANTIDO NA TELA
             st.download_button(
                 label="📥 Descarregar Relatório Completo em CSV (.csv)",
                 data=dados_csv,
@@ -589,13 +511,11 @@ else:
             )
 
     elif opcao_modulo == "💰 Vendas":
-        # TÍTULO CENTRALIZADO DO CARTÃO DE VENDAS
         st.markdown(
             "<div class='subtitulo-destaque'>💰 Visão Geral de Vendas</div>", 
             unsafe_allow_html=True
         )
 
-        # CARTÕES DE INDICADORES DE EXEMPLO PARA VENDAS
         col_vendas1, col_vendas2, col_vendas3 = st.columns(3)
 
         with col_vendas1:
@@ -633,5 +553,4 @@ else:
 
         st.write("")
         st.write("---")
-        st.info("ℹ️ A área de Vendas está configurada e pronta para receber a nova consulta SQL e indicadores do Redshift.")
-#streamlit run app.py
+        st.info("ℹ️ A área de Vendas está configurada e pronta para receber a nova consulta SQL e indicadores.")
