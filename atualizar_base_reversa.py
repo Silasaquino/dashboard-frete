@@ -22,56 +22,118 @@ NOME_ABA_RESUMO = "RESUMO REVERSA"
 # ==========================================
 QUERY_BASE = """
     SELECT 
-        return_order_date as data_solicitacao,
-        left (return_order_date,7) as mes_ano_solicitacao,
-        type_request_king as tipo_solicitacao,
+        data_solicitacao,
+        mes_ano_solicitacao,
+        tipo_solicitacao,
         seller_name,
-    Case
-        when delivery_type = 'DAFITI_ENVIOS' then 'DAFITI ENVIOS'
-        else delivery_type 
-    end as tipo_processo,
-        etl_load_date as ultima_atualizacao_tabela,
-        sale_order_store_number as pedido, 
-        return_delivery_number as remessa_retorno,
-        reason as motivo_troca,
-        definition_tracking as auto_postagem,
-        object_tag_number as object_tag_number,
-        history_status_description as status_rastreio,
-        history_update_date as data_postagem,
-        object_update_date as data_ultimo_status_correios,
-        object_status_description as ultimo_status_correios,
-        protocol as protocolo,
-        product_code_store as sku,
-        SUM(original_item_quantity_order) as quantidade,
-        SUM(reverse_amount) as valor_retorno,
-        rem_date as data_rem,
-        der_date as data_der,
-        status_date_loss as data_extravio,
-        left (coalesce (rem_date::date,der_date::date,status_date_loss::date),7) as mes_ano_finalizacao
-    FROM curated_data.a_operation_returns
-    WHERE 
-      delivery_type IN ('MILKRUN','DAFITI_ENVIOS','DROPSHIPPING')  
-      AND return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
-    GROUP BY 
-        return_order_date,
-        type_request_king,
-        seller_name,
-        delivery_type,
-        etl_load_date,
-        sale_order_store_number, 
-        return_delivery_number,
-        reason,
-        definition_tracking,
+        tipo_processo,
+        ultima_atualizacao_tabela,
+        pedido,
+        remessa_retorno,
+        motivo_troca,
+        auto_postagem,
         object_tag_number,
-        history_status_description,
-        history_update_date,
-        object_update_date,
-        object_status_description,
-        protocol,
-        product_code_store,
-        rem_date,
-        der_date,
-        status_date_loss
+        status_rastreio,
+        data_postagem,
+        data_ultimo_status_correios,
+        ultimo_status_correios,
+        protocolo,
+        sku,
+        quantidade,
+        valor_retorno,
+        data_rem,
+        data_der,
+        data_extravio,
+        mes_ano_finalizacao,
+        tracking,
+        dias_aberto_seller,
+        CASE 
+            WHEN dias_aberto_seller IS NULL THEN 'SEM ENTREGA AO SELLERS'
+            WHEN dias_aberto_seller = 0 THEN '0 DIAS CORRIDOS'
+            WHEN dias_aberto_seller = 1 THEN '1 DIAS CORRIDOS'
+            WHEN dias_aberto_seller = 2 THEN '2 DIAS CORRIDOS'
+            WHEN dias_aberto_seller = 3 THEN '3 DIAS CORRIDOS'
+            WHEN dias_aberto_seller = 4 THEN '4 DIAS CORRIDOS'
+            WHEN dias_aberto_seller = 5 THEN '5 DIAS CORRIDOS'
+            ELSE '+5 DIAS CORRIDOS'
+        END AS grupo_aberto_seller
+    FROM (
+        SELECT 
+            return_order_date AS data_solicitacao,
+            LEFT(return_order_date, 7) AS mes_ano_solicitacao,
+            type_request_king AS tipo_solicitacao,
+            seller_name,
+            CASE
+                WHEN delivery_type = 'DAFITI_ENVIOS' THEN 'DAFITI ENVIOS'
+                ELSE delivery_type 
+            END AS tipo_processo,
+            etl_load_date AS ultima_atualizacao_tabela,
+            sale_order_store_number AS pedido, 
+            return_delivery_number AS remessa_retorno,
+            reason AS motivo_troca,
+            definition_tracking AS auto_postagem,
+            object_tag_number AS object_tag_number,
+            history_status_description AS status_rastreio,
+            history_update_date AS data_postagem,
+            object_update_date AS data_ultimo_status_correios,
+            object_status_description AS ultimo_status_correios,
+            protocol AS protocolo,
+            product_code_store AS sku,
+            SUM(original_item_quantity_order) AS quantidade,
+            SUM(reverse_amount) AS valor_retorno,
+            rem_date AS data_rem,
+            der_date AS data_der,
+            status_date_loss AS data_extravio,
+            LEFT(COALESCE(rem_date::date, der_date::date, status_date_loss::date), 7) AS mes_ano_finalizacao,
+            CASE
+                WHEN rem_date IS NOT NULL THEN 'FINALIZADO'
+                WHEN der_date IS NOT NULL THEN 'FINALIZADO'
+                WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
+                WHEN object_status_description = 'Entregue' THEN 'ENTREGUE AO SELLER'
+                WHEN history_status_description = 'Coletado' THEN 'POSTADO'
+                WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'REVERSAS EXPIRADAS'
+                ELSE 'EM ABERTO'
+            END AS tracking,
+            CASE
+                WHEN (
+                    CASE
+                        WHEN rem_date IS NOT NULL THEN 'FINALIZADO'
+                        WHEN der_date IS NOT NULL THEN 'FINALIZADO'
+                        WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
+                        WHEN object_status_description = 'Entregue' THEN 'ENTREGUE AO SELLER'
+                        WHEN history_status_description = 'Coletado' THEN 'POSTADO'
+                        WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'REVERSAS EXPIRADAS'
+                        ELSE 'EM ABERTO'
+                    END
+                ) = 'ENTREGUE AO SELLER' AND object_update_date IS NOT NULL 
+                THEN DATEDIFF(day, object_update_date::date, CURRENT_DATE)
+                ELSE NULL
+            END AS dias_aberto_seller
+        FROM curated_data.a_operation_returns
+        WHERE 
+          delivery_type IN ('MILKRUN', 'DAFITI_ENVIOS', 'DROPSHIPPING')  
+          AND return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
+        GROUP BY 
+            return_order_date,
+            type_request_king,
+            seller_name,
+            delivery_type,
+            etl_load_date,
+            sale_order_store_number, 
+            return_delivery_number,
+            reason,
+            definition_tracking,
+            object_tag_number,
+            history_status_description,
+            history_update_date,
+            object_update_date,
+            object_status_description,
+            protocol,
+            product_code_store,
+            rem_date,
+            der_date,
+            status_date_loss
+    ) sub
 """
 
 QUERY_RESUMO = """
