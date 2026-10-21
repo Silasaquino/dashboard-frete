@@ -728,7 +728,7 @@ else:
 
         col_graf_tr, col_graf_mot = st.columns(2)
 
-        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (COM CORES SEMÂNTICAS ATUALIZADAS)
+        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (ORDENADO DO MAIOR PARA O MENOR)
         with col_graf_tr:
             st.subheader("🚚 Status do Tracking (Remessas Únicas)")
             if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -739,9 +739,10 @@ else:
 
                 df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
                 df_tracking.columns = ['status_tracking', 'quantidade']
+                
+                # Ordenação do menor para o maior para o Plotly renderizar do topo (maior) para baixo (menor)
                 df_tracking = df_tracking.sort_values('quantidade', ascending=True)
 
-                # Mapeamento dinâmico de cores exato:
                 mapa_cores = {
                     'FINALIZADO': '#90CDF4',          # Azul claro / discreto
                     'ENTREGUE AO SELLER': '#38A169',  # Verde
@@ -773,6 +774,7 @@ else:
                     margin=dict(l=20, r=60, t=30, b=20),
                     height=380,
                     xaxis=dict(range=[0, max_val * 1.18]),
+                    yaxis=dict(autorange="reversed"),  # Inverte para o maior valor (FINALIZADO) aparecer no topo
                     xaxis_title="Remessas Únicas",
                     yaxis_title="",
                     showlegend=False
