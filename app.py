@@ -739,8 +739,6 @@ else:
 
                 df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
                 df_tracking.columns = ['status_tracking', 'quantidade']
-                
-                # Ordenação do menor para o maior para o Plotly renderizar do topo (maior) para baixo (menor)
                 df_tracking = df_tracking.sort_values('quantidade', ascending=True)
 
                 mapa_cores = {
@@ -774,7 +772,7 @@ else:
                     margin=dict(l=20, r=60, t=30, b=20),
                     height=380,
                     xaxis=dict(range=[0, max_val * 1.18]),
-                    yaxis=dict(autorange="reversed"),  # Inverte para o maior valor (FINALIZADO) aparecer no topo
+                    yaxis=dict(autorange="reversed"),  # Inverte o eixo Y para o maior valor ficar no topo
                     xaxis_title="Remessas Únicas",
                     yaxis_title="",
                     showlegend=False
@@ -823,6 +821,68 @@ else:
                 st.plotly_chart(fig_motivos, use_container_width=True)
             else:
                 st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
+
+        st.write("")
+
+        # 📊 GRÁFICO 6: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (GRUPO ABERTO SELLER)
+        st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
+        if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            # Filtra estritamente os pacotes Entregues ao Seller
+            df_entregue_seller = df_filtrado_reversa[
+                df_filtrado_reversa['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
+            ]
+
+            if not df_entregue_seller.empty:
+                if colunas_unicas:
+                    df_unicos_grupo = df_entregue_seller.drop_duplicates(subset=colunas_unicas)
+                else:
+                    df_unicos_grupo = df_entregue_seller.copy()
+
+                df_grupo_seller = df_unicos_grupo['grupo_aberto_seller'].value_counts().reset_index()
+                df_grupo_seller.columns = ['grupo_dias', 'quantidade']
+
+                # Ordem cronológica desejada para os grupos
+                ordem_grupos = [
+                    '0 DIAS CORRIDOS',
+                    '1 DIAS CORRIDOS',
+                    '2 DIAS CORRIDOS',
+                    '3 DIAS CORRIDOS',
+                    '4 DIAS CORRIDOS',
+                    '5 DIAS CORRIDOS',
+                    '+5 DIAS CORRIDOS'
+                ]
+
+                df_grupo_seller['grupo_dias'] = pd.Categorical(
+                    df_grupo_seller['grupo_dias'],
+                    categories=ordem_grupos,
+                    ordered=True
+                )
+                df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
+
+                fig_grupo_seller = px.bar(
+                    df_grupo_seller,
+                    x='grupo_dias',
+                    y='quantidade',
+                    text='quantidade',
+                    labels={'grupo_dias': 'Faixa de Dias no Seller', 'quantidade': 'Remessas Únicas'},
+                    template=template_plotly,
+                    color_discrete_sequence=['#ED8936']
+                )
+                fig_grupo_seller.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
+                )
+                fig_grupo_seller.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=350,
+                    xaxis_title="",
+                    yaxis_title="Remessas Únicas"
+                )
+                st.plotly_chart(fig_grupo_seller, use_container_width=True)
+            else:
+                st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período e filtros selecionados.")
+        else:
+            st.info("Coluna 'grupo_aberto_seller' não encontrada na base.")
 
         st.write("---")
 
