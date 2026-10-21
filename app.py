@@ -538,27 +538,32 @@ else:
 
         col_graf1, col_graf2 = st.columns(2)
 
-        # 📊 GRÁFICO 1: VOLUME DE SOLICITAÇÕES AO LONGO DO TEMPO
+        # 📊 GRÁFICO 1: VOLUME DE SOLICITAÇÕES AGRUPADO POR MÊS/ANO
         with col_graf1:
-            st.subheader("📅 Volume de Solicitações")
-            col_data_grafico = "data_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "data_rem"
+            st.subheader("📅 Volume de Solicitações (Mês/Ano)")
+            col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
             
-            if col_data_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
                 df_temp = df_filtrado_reversa.copy()
-                df_temp['data_temp'] = pd.to_datetime(df_temp[col_data_grafico], errors='coerce')
-                df_temp = df_temp.dropna(subset=['data_temp'])
-
-                # Agrupamento diário
-                df_grafico_tempo = df_temp.groupby('data_temp').size().reset_index(name='qtd_solicitacoes')
-                df_grafico_tempo = df_grafico_tempo.sort_values('data_temp')
+                
+                # Agrupamento mensal
+                df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_solicitacoes')
+                df_grafico_mes[col_mes_grafico] = df_grafico_mes[col_mes_grafico].astype(str)
+                df_grafico_mes = df_grafico_mes[df_grafico_mes[col_mes_grafico].str.strip() != ""]
+                df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
 
                 fig_tempo = px.bar(
-                    df_grafico_tempo,
-                    x='data_temp',
+                    df_grafico_mes,
+                    x=col_mes_grafico,
                     y='qtd_solicitacoes',
-                    labels={'data_temp': 'Data', 'qtd_solicitacoes': 'Solicitações'},
+                    text='qtd_solicitacoes',
+                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_solicitacoes': 'Solicitações'},
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
+                )
+                fig_tempo.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
                 )
                 fig_tempo.update_layout(
                     margin=dict(l=20, r=20, t=30, b=20),
@@ -568,7 +573,7 @@ else:
                 )
                 st.plotly_chart(fig_tempo, use_container_width=True)
             else:
-                st.info("Sem dados suficientes para gerar o gráfico de evolução temporal.")
+                st.info("Sem dados suficientes para gerar o gráfico mensal.")
 
         # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA / DEVOLUÇÃO
         with col_graf2:
@@ -582,10 +587,15 @@ else:
                     df_motivos,
                     x='quantidade',
                     y='motivo',
+                    text='quantidade',
                     orientation='h',
                     labels={'quantidade': 'Quantidade', 'motivo': 'Motivo'},
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
+                )
+                fig_motivos.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
                 )
                 fig_motivos.update_layout(
                     margin=dict(l=20, r=20, t=30, b=20),
