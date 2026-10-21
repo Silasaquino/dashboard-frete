@@ -528,36 +528,45 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (VISUAIS)
+        # ANÁLISE GRÁFICA (VISUAIS - BASEADOS EM REMESSAS ÚNICAS)
         # ==========================================
         st.markdown(
-            "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções</h3>", 
+            "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
             unsafe_allow_html=True
         )
         st.write("")
 
         col_graf1, col_graf2 = st.columns(2)
 
-        # 📊 GRÁFICO 1: VOLUME DE SOLICITAÇÕES AGRUPADO POR MÊS/ANO
+        # Identifica colunas chaves para remoção de duplicados no cálculo único
+        colunas_unicas = [c for c in ['pedido', 'remessa_retorno', 'protocolo'] if c in df_filtrado_reversa.columns]
+
+        # 📊 GRÁFICO 1: VOLUME DE REMESSAS ÚNICAS AGRUPADO POR MÊS/ANO
         with col_graf1:
-            st.subheader("📅 Volume de Solicitações (Mês/Ano)")
+            st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
             col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
             
             if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
                 df_temp = df_filtrado_reversa.copy()
-                
-                # Agrupamento mensal
-                df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_solicitacoes')
-                df_grafico_mes[col_mes_grafico] = df_grafico_mes[col_mes_grafico].astype(str)
-                df_grafico_mes = df_grafico_mes[df_grafico_mes[col_mes_grafico].str.strip() != ""]
+                df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
+                df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
+
+                # Agrupamento mensal calculando unicamente remessas sem duplicados
+                if colunas_unicas:
+                    df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
+                        lambda g: len(g.drop_duplicates(subset=colunas_unicas))
+                    ).reset_index(name='qtd_remessas_unicas')
+                else:
+                    df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
+
                 df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
 
                 fig_tempo = px.bar(
                     df_grafico_mes,
                     x=col_mes_grafico,
-                    y='qtd_solicitacoes',
-                    text='qtd_solicitacoes',
-                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_solicitacoes': 'Solicitações'},
+                    y='qtd_remessas_unicas',
+                    text='qtd_remessas_unicas',
+                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_remessas_unicas': 'Remessas Únicas'},
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
                 )
@@ -569,17 +578,23 @@ else:
                     margin=dict(l=20, r=20, t=30, b=20),
                     height=380,
                     xaxis_title="",
-                    yaxis_title="Quantidade"
+                    yaxis_title="Remessas Únicas"
                 )
                 st.plotly_chart(fig_tempo, use_container_width=True)
             else:
                 st.info("Sem dados suficientes para gerar o gráfico mensal.")
 
-        # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA / DEVOLUÇÃO
+        # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
         with col_graf2:
-            st.subheader("🔍 Principais Motivos de Troca")
+            st.subheader("🔍 Principais Motivos de Troca (Remessas Únicas)")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                df_motivos = df_filtrado_reversa['motivo_troca'].value_counts().reset_index()
+                # Remove duplicados das chaves para contar apenas 1 ocorrência por remessa
+                if colunas_unicas:
+                    df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
+                else:
+                    df_unicos_motivo = df_filtrado_reversa.copy()
+
+                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
                 df_motivos.columns = ['motivo', 'quantidade']
                 df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
 
@@ -589,7 +604,7 @@ else:
                     y='motivo',
                     text='quantidade',
                     orientation='h',
-                    labels={'quantidade': 'Quantidade', 'motivo': 'Motivo'},
+                    labels={'quantidade': 'Remessas Únicas', 'motivo': 'Motivo'},
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
                 )
@@ -600,7 +615,7 @@ else:
                 fig_motivos.update_layout(
                     margin=dict(l=20, r=20, t=30, b=20),
                     height=380,
-                    xaxis_title="Quantidade",
+                    xaxis_title="Remessas Únicas",
                     yaxis_title=""
                 )
                 st.plotly_chart(fig_motivos, use_container_width=True)
