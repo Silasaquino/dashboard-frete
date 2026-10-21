@@ -728,7 +728,7 @@ else:
 
         col_graf_tr, col_graf_mot = st.columns(2)
 
-        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (REMESSAS ÚNICAS)
+        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (COM CORES SEMÂNTICAS ATUALIZADAS)
         with col_graf_tr:
             st.subheader("🚚 Status do Tracking (Remessas Únicas)")
             if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -741,25 +741,41 @@ else:
                 df_tracking.columns = ['status_tracking', 'quantidade']
                 df_tracking = df_tracking.sort_values('quantidade', ascending=True)
 
+                # Mapeamento dinâmico de cores exato:
+                mapa_cores = {
+                    'FINALIZADO': '#90CDF4',          # Azul claro / discreto
+                    'ENTREGUE AO SELLER': '#38A169',  # Verde
+                    'POSTADO': '#3182CE',             # Azul padrão
+                    'EM ABERTO': '#DD6B20',            # Laranja
+                    'EXTRAVIO': '#E53E3E',             # Vermelho
+                    'REVERSAS EXPIRADAS': '#FEB2B2'   # Vermelho claro
+                }
+
                 fig_tracking = px.bar(
                     df_tracking,
                     x='quantidade',
                     y='status_tracking',
                     text='quantidade',
                     orientation='h',
+                    color='status_tracking',
+                    color_discrete_map=mapa_cores,
                     labels={'quantidade': 'Remessas Únicas', 'status_tracking': 'Status Tracking'},
-                    template=template_plotly,
-                    color_discrete_sequence=[cor_grafico]
+                    template=template_plotly
                 )
+
+                max_val = df_tracking['quantidade'].max() if not df_tracking.empty else 100
+
                 fig_tracking.update_traces(
                     texttemplate='%{text:,}',
                     textposition='outside'
                 )
                 fig_tracking.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
+                    margin=dict(l=20, r=60, t=30, b=20),
                     height=380,
+                    xaxis=dict(range=[0, max_val * 1.18]),
                     xaxis_title="Remessas Únicas",
-                    yaxis_title=""
+                    yaxis_title="",
+                    showlegend=False
                 )
                 st.plotly_chart(fig_tracking, use_container_width=True)
             else:
@@ -788,13 +804,17 @@ else:
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
                 )
+                
+                max_mot = df_motivos['quantidade'].max() if not df_motivos.empty else 100
+
                 fig_motivos.update_traces(
                     texttemplate='%{text:,}',
                     textposition='outside'
                 )
                 fig_motivos.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
+                    margin=dict(l=20, r=60, t=30, b=20),
                     height=380,
+                    xaxis=dict(range=[0, max_mot * 1.18]),
                     xaxis_title="Remessas Únicas",
                     yaxis_title=""
                 )
