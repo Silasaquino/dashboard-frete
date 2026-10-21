@@ -324,6 +324,27 @@ else:
                     font-weight: bold;
                     color: #FFFFFF !important;
                 }
+                /* Ajuste de visibilidade dos Radio Buttons no Modo Escuro */
+                div[data-testid="stRadio"] label, div[data-testid="stRadio"] label p {
+                    color: #FFFFFF !important;
+                    font-weight: 600 !important;
+                }
+                /* Botão de Download estilizado com alto contraste */
+                div[data-testid="stDownloadButton"] button {
+                    background-color: #E53E3E !important;
+                    color: #FFFFFF !important;
+                    border: none !important;
+                    font-weight: bold !important;
+                    font-size: 16px !important;
+                    border-radius: 8px !important;
+                    padding: 0.75rem 1.25rem !important;
+                    width: 100% !important;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+                }
+                div[data-testid="stDownloadButton"] button:hover {
+                    background-color: #C53030 !important;
+                    color: #FFFFFF !important;
+                }
             </style>
         """, unsafe_allow_html=True)
     else:
@@ -363,6 +384,27 @@ else:
                     font-size: 24px;
                     font-weight: bold;
                     color: #1A202C !important;
+                }
+                /* Radio Buttons no Modo Claro */
+                div[data-testid="stRadio"] label, div[data-testid="stRadio"] label p {
+                    color: #2D3748 !important;
+                    font-weight: 600 !important;
+                }
+                /* Botão de Download para Modo Claro */
+                div[data-testid="stDownloadButton"] button {
+                    background-color: #3182CE !important;
+                    color: #FFFFFF !important;
+                    border: none !important;
+                    font-weight: bold !important;
+                    font-size: 16px !important;
+                    border-radius: 8px !important;
+                    padding: 0.75rem 1.25rem !important;
+                    width: 100% !important;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+                }
+                div[data-testid="stDownloadButton"] button:hover {
+                    background-color: #2B6CB0 !important;
+                    color: #FFFFFF !important;
                 }
             </style>
         """, unsafe_allow_html=True)
