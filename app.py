@@ -726,9 +726,50 @@ else:
 
         st.write("")
 
-        col_graf_tr, col_graf_mot = st.columns(2)
+        col_graf_mot, col_graf_tr = st.columns(2)
 
-        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (ORDENADO DO MAIOR PARA O MENOR)
+        # 📊 GRÁFICO 4: PRINCIPAIS MOTIVOS DE TROCA (COLUNA DA ESQUERDA)
+        with col_graf_mot:
+            st.subheader("🔍 Principais Motivos de Troca")
+            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                if colunas_unicas:
+                    df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
+                else:
+                    df_unicos_motivo = df_filtrado_reversa.copy()
+
+                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
+                df_motivos.columns = ['motivo', 'quantidade']
+                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
+
+                fig_motivos = px.bar(
+                    df_motivos,
+                    x='quantidade',
+                    y='motivo',
+                    text='quantidade',
+                    orientation='h',
+                    labels={'quantidade': 'Remessas Únicas', 'motivo': 'Motivo'},
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                
+                max_mot = df_motivos['quantidade'].max() if not df_motivos.empty else 100
+
+                fig_motivos.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
+                )
+                fig_motivos.update_layout(
+                    margin=dict(l=20, r=60, t=30, b=20),
+                    height=380,
+                    xaxis=dict(range=[0, max_mot * 1.18]),
+                    xaxis_title="Remessas Únicas",
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_motivos, use_container_width=True)
+            else:
+                st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
+
+        # 📊 GRÁFICO 5: DISTRIBUIÇÃO POR TRACKING (COLUNA DA DIREITA - ORDENADO DO MAIOR PARA O MENOR)
         with col_graf_tr:
             st.subheader("🚚 Status do Tracking (Remessas Únicas)")
             if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -781,53 +822,11 @@ else:
             else:
                 st.info("Coluna 'tracking' não encontrada na tabela.")
 
-        # 📊 GRÁFICO 5: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
-        with col_graf_mot:
-            st.subheader("🔍 Principais Motivos de Troca")
-            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                if colunas_unicas:
-                    df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
-                else:
-                    df_unicos_motivo = df_filtrado_reversa.copy()
-
-                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
-                df_motivos.columns = ['motivo', 'quantidade']
-                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
-
-                fig_motivos = px.bar(
-                    df_motivos,
-                    x='quantidade',
-                    y='motivo',
-                    text='quantidade',
-                    orientation='h',
-                    labels={'quantidade': 'Remessas Únicas', 'motivo': 'Motivo'},
-                    template=template_plotly,
-                    color_discrete_sequence=[cor_grafico]
-                )
-                
-                max_mot = df_motivos['quantidade'].max() if not df_motivos.empty else 100
-
-                fig_motivos.update_traces(
-                    texttemplate='%{text:,}',
-                    textposition='outside'
-                )
-                fig_motivos.update_layout(
-                    margin=dict(l=20, r=60, t=30, b=20),
-                    height=380,
-                    xaxis=dict(range=[0, max_mot * 1.18]),
-                    xaxis_title="Remessas Únicas",
-                    yaxis_title=""
-                )
-                st.plotly_chart(fig_motivos, use_container_width=True)
-            else:
-                st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
-
         st.write("")
 
         # 📊 GRÁFICO 6: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (GRUPO ABERTO SELLER)
         st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
         if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            # Filtra estritamente os pacotes Entregues ao Seller
             df_entregue_seller = df_filtrado_reversa[
                 df_filtrado_reversa['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
             ]
@@ -841,7 +840,6 @@ else:
                 df_grupo_seller = df_unicos_grupo['grupo_aberto_seller'].value_counts().reset_index()
                 df_grupo_seller.columns = ['grupo_dias', 'quantidade']
 
-                # Ordem cronológica desejada para os grupos
                 ordem_grupos = [
                     '0 DIAS CORRIDOS',
                     '1 DIAS CORRIDOS',
