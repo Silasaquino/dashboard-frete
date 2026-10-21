@@ -614,11 +614,15 @@ else:
                     font=dict(color="#ECC94B", size=12, family="sans-serif")
                 )
 
+                max_taxa_y = df_evolucao_taxa['taxa_calc'].max() if not df_evolucao_taxa.empty else 0.15
+
                 fig_linha_taxa.update_layout(
                     template=template_plotly,
-                    margin=dict(l=20, r=20, t=30, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=30, r=40, t=30, b=30),
                     height=380,
-                    yaxis=dict(tickformat='.1%', title="Taxa (%)"),
+                    yaxis=dict(tickformat='.1%', title="Taxa (%)", range=[0, max_taxa_y * 1.22]),
                     xaxis_title="",
                     showlegend=False
                 )
@@ -657,13 +661,19 @@ else:
                     template=template_plotly,
                     color_discrete_sequence=['#E53E3E']
                 )
+
+                max_taxa_aberto = df_top_aberto['taxa_aberto'].max() if not df_top_aberto.empty else 0.50
+
                 fig_top_aberto.update_traces(
                     textposition='outside'
                 )
                 fig_top_aberto.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
+                    template=template_plotly,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=80, t=30, b=20),
                     height=380,
-                    xaxis=dict(tickformat='.1%', title="% Em Aberto"),
+                    xaxis=dict(tickformat='.1%', title="% Em Aberto", range=[0, max_taxa_aberto * 1.25]),
                     yaxis_title=""
                 )
                 st.plotly_chart(fig_top_aberto, use_container_width=True)
@@ -715,6 +725,8 @@ else:
                 textposition='outside'
             )
             fig_tempo.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
                 margin=dict(l=20, r=20, t=30, b=20),
                 height=350,
                 xaxis_title="",
@@ -764,7 +776,9 @@ else:
                     textposition='outside'
                 )
                 fig_motivos.update_layout(
-                    margin=dict(l=20, r=80, t=30, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=90, t=30, b=20),
                     height=380,
                     xaxis=dict(range=[0, max_mot * 1.30]),
                     xaxis_title="Remessas Únicas",
@@ -820,7 +834,9 @@ else:
                     textposition='outside'
                 )
                 fig_tracking.update_layout(
-                    margin=dict(l=20, r=80, t=30, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=90, t=30, b=20),
                     height=380,
                     xaxis=dict(range=[0, max_val * 1.30]),
                     yaxis=dict(autorange="reversed"),  # Inverte o eixo Y para o maior valor (FINALIZADO) ficar no topo
@@ -886,6 +902,8 @@ else:
                     textposition='outside'
                 )
                 fig_grupo_seller.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                     margin=dict(l=20, r=20, t=30, b=20),
                     height=350,
                     xaxis_title="",
