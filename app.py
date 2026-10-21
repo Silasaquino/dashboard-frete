@@ -5,6 +5,7 @@ import urllib.request
 import warnings
 import pandas as pd
 import streamlit as st
+import plotly.express as px
 
 # Desativa avisos desnecessários no terminal
 warnings.filterwarnings("ignore")
@@ -287,6 +288,8 @@ else:
 
     # INJEÇÃO DINÂMICA DE CSS COM BASE NO TEMA SELECIONADO NA ÁREA PRINCIPAL
     if tema_selecionado == "Escuro 🌙":
+        template_plotly = "plotly_dark"
+        cor_grafico = "#63B3ED"
         st.markdown("""
             <style>
                 /* Cores para o Modo Escuro */
@@ -324,12 +327,10 @@ else:
                     font-weight: bold;
                     color: #FFFFFF !important;
                 }
-                /* Ajuste de visibilidade dos Radio Buttons no Modo Escuro */
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] label p {
                     color: #FFFFFF !important;
                     font-weight: 600 !important;
                 }
-                /* Botão de Download estilizado com alto contraste */
                 div[data-testid="stDownloadButton"] button {
                     background-color: #E53E3E !important;
                     color: #FFFFFF !important;
@@ -348,6 +349,8 @@ else:
             </style>
         """, unsafe_allow_html=True)
     else:
+        template_plotly = "plotly_white"
+        cor_grafico = "#2B6CB0"
         st.markdown("""
             <style>
                 /* Cores para o Modo Claro */
@@ -385,12 +388,10 @@ else:
                     font-weight: bold;
                     color: #1A202C !important;
                 }
-                /* Radio Buttons no Modo Claro */
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] label p {
                     color: #2D3748 !important;
                     font-weight: 600 !important;
                 }
-                /* Botão de Download para Modo Claro */
                 div[data-testid="stDownloadButton"] button {
                     background-color: #3182CE !important;
                     color: #FFFFFF !important;
@@ -524,6 +525,78 @@ else:
             )
 
         st.write("")
+        st.write("---")
+
+        # ==========================================
+        # ANÁLISE GRÁFICA (VISUAIS)
+        # ==========================================
+        st.markdown(
+            "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções</h3>", 
+            unsafe_allow_html=True
+        )
+        st.write("")
+
+        col_graf1, col_graf2 = st.columns(2)
+
+        # 📊 GRÁFICO 1: VOLUME DE SOLICITAÇÕES AO LONGO DO TEMPO
+        with col_graf1:
+            st.subheader("📅 Volume de Solicitações")
+            col_data_grafico = "data_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "data_rem"
+            
+            if col_data_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_temp = df_filtrado_reversa.copy()
+                df_temp['data_temp'] = pd.to_datetime(df_temp[col_data_grafico], errors='coerce')
+                df_temp = df_temp.dropna(subset=['data_temp'])
+
+                # Agrupamento diário
+                df_grafico_tempo = df_temp.groupby('data_temp').size().reset_index(name='qtd_solicitacoes')
+                df_grafico_tempo = df_grafico_tempo.sort_values('data_temp')
+
+                fig_tempo = px.bar(
+                    df_grafico_tempo,
+                    x='data_temp',
+                    y='qtd_solicitacoes',
+                    labels={'data_temp': 'Data', 'qtd_solicitacoes': 'Solicitações'},
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                fig_tempo.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis_title="",
+                    yaxis_title="Quantidade"
+                )
+                st.plotly_chart(fig_tempo, use_container_width=True)
+            else:
+                st.info("Sem dados suficientes para gerar o gráfico de evolução temporal.")
+
+        # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA / DEVOLUÇÃO
+        with col_graf2:
+            st.subheader("🔍 Principais Motivos de Troca")
+            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_motivos = df_filtrado_reversa['motivo_troca'].value_counts().reset_index()
+                df_motivos.columns = ['motivo', 'quantidade']
+                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
+
+                fig_motivos = px.bar(
+                    df_motivos,
+                    x='quantidade',
+                    y='motivo',
+                    orientation='h',
+                    labels={'quantidade': 'Quantidade', 'motivo': 'Motivo'},
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                fig_motivos.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis_title="Quantidade",
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_motivos, use_container_width=True)
+            else:
+                st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
+
         st.write("---")
 
         # ÁREA DE DOWNLOAD

@@ -8,3 +8,4 @@ streamlit
 pandas
 openpyxl
 psycopg2-binary
+plotly
