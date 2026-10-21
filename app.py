@@ -549,100 +549,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (BLOCO 1: BASE DE REMESSAS ÚNICAS E MOTIVOS)
-        # ==========================================
-        st.markdown(
-            "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
-            unsafe_allow_html=True
-        )
-        st.write("")
-
-        col_graf1, col_graf2 = st.columns(2)
-        colunas_unicas = [c for c in ['pedido', 'remessa_retorno', 'protocolo'] if c in df_filtrado_reversa.columns]
-
-        # 📊 GRÁFICO 1: VOLUME DE REMESSAS ÚNICAS AGRUPADO POR MÊS/ANO
-        with col_graf1:
-            st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
-            col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
-            
-            if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                df_temp = df_filtrado_reversa.copy()
-                df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
-                df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
-
-                if colunas_unicas:
-                    df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
-                        lambda g: len(g.drop_duplicates(subset=colunas_unicas))
-                    ).reset_index(name='qtd_remessas_unicas')
-                else:
-                    df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
-
-                df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
-
-                fig_tempo = px.bar(
-                    df_grafico_mes,
-                    x=col_mes_grafico,
-                    y='qtd_remessas_unicas',
-                    text='qtd_remessas_unicas',
-                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_remessas_unicas': 'Remessas Únicas'},
-                    template=template_plotly,
-                    color_discrete_sequence=[cor_grafico]
-                )
-                fig_tempo.update_traces(
-                    texttemplate='%{text:,}',
-                    textposition='outside'
-                )
-                fig_tempo.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
-                    height=380,
-                    xaxis_title="",
-                    yaxis_title="Remessas Únicas"
-                )
-                st.plotly_chart(fig_tempo, use_container_width=True)
-            else:
-                st.info("Sem dados suficientes para gerar o gráfico mensal.")
-
-        # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
-        with col_graf2:
-            st.subheader("🔍 Principais Motivos de Troca")
-            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                if colunas_unicas:
-                    df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
-                else:
-                    df_unicos_motivo = df_filtrado_reversa.copy()
-
-                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
-                df_motivos.columns = ['motivo', 'quantidade']
-                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
-
-                fig_motivos = px.bar(
-                    df_motivos,
-                    x='quantidade',
-                    y='motivo',
-                    text='quantidade',
-                    orientation='h',
-                    labels={'quantidade': 'Remessas Únicas', 'motivo': 'Motivo'},
-                    template=template_plotly,
-                    color_discrete_sequence=[cor_grafico]
-                )
-                fig_motivos.update_traces(
-                    texttemplate='%{text:,}',
-                    textposition='outside'
-                )
-                fig_motivos.update_layout(
-                    margin=dict(l=20, r=20, t=30, b=20),
-                    height=380,
-                    xaxis_title="Remessas Únicas",
-                    yaxis_title=""
-                )
-                st.plotly_chart(fig_motivos, use_container_width=True)
-            else:
-                st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
-
-        st.write("---")
-
-        # ==========================================
-        # ANÁLISE GRÁFICA (BLOCO 2: RESUMO REVERSA - TAXA DE SELLER E EM ABERTO)
+        # ANÁLISE GRÁFICA (BLOCO 1: RESUMO REVERSA - TAXA DE SELLER E EM ABERTO)
         # ==========================================
         st.markdown(
             "<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", 
@@ -654,7 +561,7 @@ else:
 
         META_TAXA_SELLER = 0.09  # Meta de 9%
 
-        # 📊 GRÁFICO 3: EVOLUÇÃO MENSAL DA TAXA GERAL DE DEVOLUÇÃO (SELLER) COM META DE 9%
+        # 📊 GRÁFICO 1: EVOLUÇÃO MENSAL DA TAXA GERAL DE DEVOLUÇÃO (SELLER) COM META DE 9%
         with col_graf3:
             st.subheader("🎯 Evolução Mensal da Taxa de Devolução (Seller)")
             if 'mes_ano_definido' in df_filtrado_resumo.columns and 'taxa_devolucao_seller' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
@@ -724,14 +631,13 @@ else:
             else:
                 st.info("Sem dados suficientes para exibir a evolução da taxa do seller.")
 
-        # 📊 GRÁFICO 4: TOP SELLERS COM MAIOR % DE DEVOLUÇÃO EM ABERTO
+        # 📊 GRÁFICO 2: TOP SELLERS COM MAIOR % DE DEVOLUÇÃO EM ABERTO
         with col_graf4:
             st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
             if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_aberto_temp = df_filtrado_resumo.copy()
                 df_aberto_temp['taxa_devolucao_aberto'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce')
 
-                # Se a empresa for Dafiti, mostra Top 10. Se for Seller, exibe a taxa própria
                 if 'qtd_etr' in df_aberto_temp.columns and 'devolucao_em_aberto' in df_aberto_temp.columns:
                     df_top_aberto = df_aberto_temp.groupby('nome_seller').agg(
                         tot_etr=('qtd_etr', 'sum'),
@@ -768,6 +674,99 @@ else:
                 st.plotly_chart(fig_top_aberto, use_container_width=True)
             else:
                 st.info("Coluna 'taxa_devolucao_aberto' não encontrada no resumo.")
+
+        st.write("---")
+
+        # ==========================================
+        # ANÁLISE GRÁFICA (BLOCO 2: BASE DE REMESSAS ÚNICAS E MOTIVOS)
+        # ==========================================
+        st.markdown(
+            "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
+            unsafe_allow_html=True
+        )
+        st.write("")
+
+        col_graf1, col_graf2 = st.columns(2)
+        colunas_unicas = [c for c in ['pedido', 'remessa_retorno', 'protocolo'] if c in df_filtrado_reversa.columns]
+
+        # 📊 GRÁFICO 3: VOLUME DE REMESSAS ÚNICAS AGRUPADO POR MÊS/ANO
+        with col_graf1:
+            st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
+            col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+            
+            if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_temp = df_filtrado_reversa.copy()
+                df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
+                df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
+
+                if colunas_unicas:
+                    df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
+                        lambda g: len(g.drop_duplicates(subset=colunas_unicas))
+                    ).reset_index(name='qtd_remessas_unicas')
+                else:
+                    df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
+
+                df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+
+                fig_tempo = px.bar(
+                    df_grafico_mes,
+                    x=col_mes_grafico,
+                    y='qtd_remessas_unicas',
+                    text='qtd_remessas_unicas',
+                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_remessas_unicas': 'Remessas Únicas'},
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                fig_tempo.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
+                )
+                fig_tempo.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis_title="",
+                    yaxis_title="Remessas Únicas"
+                )
+                st.plotly_chart(fig_tempo, use_container_width=True)
+            else:
+                st.info("Sem dados suficientes para gerar o gráfico mensal.")
+
+        # 📊 GRÁFICO 4: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
+        with col_graf2:
+            st.subheader("🔍 Principais Motivos de Troca")
+            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                if colunas_unicas:
+                    df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
+                else:
+                    df_unicos_motivo = df_filtrado_reversa.copy()
+
+                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
+                df_motivos.columns = ['motivo', 'quantidade']
+                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
+
+                fig_motivos = px.bar(
+                    df_motivos,
+                    x='quantidade',
+                    y='motivo',
+                    text='quantidade',
+                    orientation='h',
+                    labels={'quantidade': 'Remessas Únicas', 'motivo': 'Motivo'},
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                fig_motivos.update_traces(
+                    texttemplate='%{text:,}',
+                    textposition='outside'
+                )
+                fig_motivos.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis_title="Remessas Únicas",
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_motivos, use_container_width=True)
+            else:
+                st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
 
         st.write("---")
 
