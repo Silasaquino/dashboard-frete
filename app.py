@@ -6,6 +6,7 @@ import warnings
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Desativa avisos desnecessários no terminal
 warnings.filterwarnings("ignore")
@@ -184,25 +185,35 @@ else:
     
     st.sidebar.write("---")
 
-   # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS (BASE REVERSA) ---
+    # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS ---
+    SHEET_ID_REVERSA = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
+
     @st.cache_data(ttl=3600)
     def carregar_dados_reversa():
-        SHEET_ID_REVERSA = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
-        SHEET_NAME_REVERSA = "BASE"
-        
-        url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME_REVERSA}"
-        
+        url_csv_base = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet=BASE"
         try:
-            df_resultado = pd.read_csv(url_csv)
+            df_resultado = pd.read_csv(url_csv_base)
             return df_resultado
         except Exception as e:
-            st.error(f"Erro ao carregar dados da folha 'BASE REVERSA': {e}")
+            st.error(f"Erro ao carregar dados da folha 'BASE': {e}")
+            return pd.DataFrame()
+
+    @st.cache_data(ttl=3600)
+    def carregar_dados_resumo():
+        url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
+        try:
+            df_resumo = pd.read_csv(url_csv_resumo)
+            return df_resumo
+        except Exception as e:
+            st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
     with st.spinner("⏳ A carregar dados da Operação Reversa..."):
         df_raw_reversa = carregar_dados_reversa()
+        df_raw_resumo = carregar_dados_resumo()
 
     df_filtrado_reversa = df_raw_reversa.copy()
+    df_filtrado_resumo = df_raw_resumo.copy()
 
     # ==========================================
     # FILTROS NA BARRA LATERAL (SIDEBAR)
@@ -224,18 +235,22 @@ else:
         label_visibility="collapsed"
     )
 
-    if modalidade_selecionada != "Todos" and 'tipo_processo' in df_filtrado_reversa.columns:
+    if modalidade_selecionada != "Todos":
         mapeamento_modalidades = {
             "Dafiti Envios": ["dafiti envios", "dafiti_envios"],
             "Milkrun": ["milkrun"],
             "Dropshipping": ["dropshipping"]
         }
-        
         valores_aceitos = mapeamento_modalidades.get(modalidade_selecionada, [modalidade_selecionada.lower()])
         
-        df_filtrado_reversa = df_filtrado_reversa[
-            df_filtrado_reversa['tipo_processo'].astype(str).str.lower().isin(valores_aceitos)
-        ]
+        if 'tipo_processo' in df_filtrado_reversa.columns:
+            df_filtrado_reversa = df_filtrado_reversa[
+                df_filtrado_reversa['tipo_processo'].astype(str).str.lower().isin(valores_aceitos)
+            ]
+        if 'delivery_type' in df_filtrado_resumo.columns:
+            df_filtrado_resumo = df_filtrado_resumo[
+                df_filtrado_resumo['delivery_type'].astype(str).str.lower().isin(valores_aceitos)
+            ]
 
     st.sidebar.write("")
 
@@ -256,6 +271,8 @@ else:
 
             if seller_selecionado != "Todos":
                 df_filtrado_reversa = df_filtrado_reversa[df_filtrado_reversa['seller_name'] == seller_selecionado]
+                if 'nome_seller' in df_filtrado_resumo.columns:
+                    df_filtrado_resumo = df_filtrado_resumo[df_filtrado_resumo['nome_seller'] == seller_selecionado]
         else:
             st.sidebar.warning("Coluna 'seller_name' não encontrada na tabela.")
     else:
@@ -263,6 +280,10 @@ else:
         if 'seller_name' in df_filtrado_reversa.columns:
             df_filtrado_reversa = df_filtrado_reversa[
                 df_filtrado_reversa['seller_name'].astype(str).str.lower() == empresa_usuario.lower()
+            ]
+        if 'nome_seller' in df_filtrado_resumo.columns:
+            df_filtrado_resumo = df_filtrado_resumo[
+                df_filtrado_resumo['nome_seller'].astype(str).str.lower() == empresa_usuario.lower()
             ]
 
     # ==========================================
@@ -528,7 +549,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (VISUAIS - BASEADOS EM REMESSAS ÚNICAS)
+        # ANÁLISE GRÁFICA (BLOCO 1: BASE DE REMESSAS ÚNICAS E MOTIVOS)
         # ==========================================
         st.markdown(
             "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
@@ -537,8 +558,6 @@ else:
         st.write("")
 
         col_graf1, col_graf2 = st.columns(2)
-
-        # Identifica colunas chaves para remoção de duplicados no cálculo único
         colunas_unicas = [c for c in ['pedido', 'remessa_retorno', 'protocolo'] if c in df_filtrado_reversa.columns]
 
         # 📊 GRÁFICO 1: VOLUME DE REMESSAS ÚNICAS AGRUPADO POR MÊS/ANO
@@ -551,7 +570,6 @@ else:
                 df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
                 df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
 
-                # Agrupamento mensal calculando unicamente remessas sem duplicados
                 if colunas_unicas:
                     df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
                         lambda g: len(g.drop_duplicates(subset=colunas_unicas))
@@ -586,9 +604,8 @@ else:
 
         # 📊 GRÁFICO 2: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
         with col_graf2:
-            st.subheader("🔍 Principais Motivos de Troca (Remessas Únicas)")
+            st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                # Remove duplicados das chaves para contar apenas 1 ocorrência por remessa
                 if colunas_unicas:
                     df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
                 else:
@@ -621,6 +638,136 @@ else:
                 st.plotly_chart(fig_motivos, use_container_width=True)
             else:
                 st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
+
+        st.write("---")
+
+        # ==========================================
+        # ANÁLISE GRÁFICA (BLOCO 2: RESUMO REVERSA - TAXA DE SELLER E EM ABERTO)
+        # ==========================================
+        st.markdown(
+            "<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", 
+            unsafe_allow_html=True
+        )
+        st.write("")
+
+        col_graf3, col_graf4 = st.columns(2)
+
+        META_TAXA_SELLER = 0.09  # Meta de 9%
+
+        # 📊 GRÁFICO 3: EVOLUÇÃO MENSAL DA TAXA GERAL DE DEVOLUÇÃO (SELLER) COM META DE 9%
+        with col_graf3:
+            st.subheader("🎯 Evolução Mensal da Taxa de Devolução (Seller)")
+            if 'mes_ano_definido' in df_filtrado_resumo.columns and 'taxa_devolucao_seller' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+                df_resumo_temp = df_filtrado_resumo.copy()
+                df_resumo_temp['taxa_devolucao_seller'] = pd.to_numeric(df_resumo_temp['taxa_devolucao_seller'], errors='coerce')
+                
+                # Agrupa por Mês/Ano calculando a média ponderada/soma das taxas
+                if 'qtd_etr' in df_resumo_temp.columns and 'devolvido_seller' in df_resumo_temp.columns:
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido').agg(
+                        tot_etr=('qtd_etr', 'sum'),
+                        tot_dev_seller=('devolvido_seller', 'sum')
+                    ).reset_index()
+                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa['tot_dev_seller'] / df_evolucao_taxa['tot_etr']
+                else:
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido')['taxa_devolucao_seller'].mean().reset_index()
+                    df_evolucao_taxa.rename(columns={'taxa_devolucao_seller': 'taxa_calc'}, inplace=True)
+
+                df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_ano_definido')
+                df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+                
+                # Define as cores dos marcadores: Vermelho se > 9%, azul/tema se <= 9%
+                cores_pontos = ['#E53E3E' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
+
+                fig_linha_taxa = go.Figure()
+
+                # Adiciona a Linha da Taxa
+                fig_linha_taxa.add_trace(go.Scatter(
+                    x=df_evolucao_taxa['mes_ano_definido'],
+                    y=df_evolucao_taxa['taxa_calc'],
+                    mode='lines+markers+text',
+                    text=df_evolucao_taxa['taxa_pct_str'],
+                    textposition='top center',
+                    line=dict(color=cor_grafico, width=3),
+                    marker=dict(size=10, color=cores_pontos),
+                    name='Taxa Devolução Seller'
+                ))
+
+                # Adiciona a Linha Tracejada de Meta (9%)
+                fig_linha_taxa.add_shape(
+                    type="line",
+                    x0=df_evolucao_taxa['mes_ano_definido'].iloc[0],
+                    y0=META_TAXA_SELLER,
+                    x1=df_evolucao_taxa['mes_ano_definido'].iloc[-1],
+                    y1=META_TAXA_SELLER,
+                    line=dict(color="#ECC94B", width=2, dash="dash")
+                )
+
+                # Rótulo explicativo da Meta
+                fig_linha_taxa.add_annotation(
+                    x=df_evolucao_taxa['mes_ano_definido'].iloc[-1],
+                    y=META_TAXA_SELLER,
+                    text="Meta (9%)",
+                    showarrow=False,
+                    yshift=12,
+                    font=dict(color="#ECC94B", size=12, family="sans-serif")
+                )
+
+                fig_linha_taxa.update_layout(
+                    template=template_plotly,
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    yaxis=dict(tickformat='.1%', title="Taxa (%)"),
+                    xaxis_title="",
+                    showlegend=False
+                )
+                st.plotly_chart(fig_linha_taxa, use_container_width=True)
+            else:
+                st.info("Sem dados suficientes para exibir a evolução da taxa do seller.")
+
+        # 📊 GRÁFICO 4: TOP SELLERS COM MAIOR % DE DEVOLUÇÃO EM ABERTO
+        with col_graf4:
+            st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
+            if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+                df_aberto_temp = df_filtrado_resumo.copy()
+                df_aberto_temp['taxa_devolucao_aberto'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce')
+
+                # Se a empresa for Dafiti, mostra Top 10. Se for Seller, exibe a taxa própria
+                if 'qtd_etr' in df_aberto_temp.columns and 'devolucao_em_aberto' in df_aberto_temp.columns:
+                    df_top_aberto = df_aberto_temp.groupby('nome_seller').agg(
+                        tot_etr=('qtd_etr', 'sum'),
+                        tot_aberto=('devolucao_em_aberto', 'sum')
+                    ).reset_index()
+                    df_top_aberto['taxa_aberto'] = df_top_aberto['tot_aberto'] / df_top_aberto['tot_etr']
+                else:
+                    df_top_aberto = df_aberto_temp.groupby('nome_seller')['taxa_devolucao_aberto'].mean().reset_index()
+                    df_top_aberto.rename(columns={'taxa_devolucao_aberto': 'taxa_aberto'}, inplace=True)
+
+                df_top_aberto = df_top_aberto.sort_values('taxa_aberto', ascending=False).head(10)
+                df_top_aberto = df_top_aberto.sort_values('taxa_aberto', ascending=True)  # Ordena para exibição horizontal
+                df_top_aberto['taxa_str'] = df_top_aberto['taxa_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+
+                fig_top_aberto = px.bar(
+                    df_top_aberto,
+                    x='taxa_aberto',
+                    y='nome_seller',
+                    text='taxa_str',
+                    orientation='h',
+                    labels={'taxa_aberto': '% Em Aberto', 'nome_seller': 'Seller'},
+                    template=template_plotly,
+                    color_discrete_sequence=['#E53E3E']
+                )
+                fig_top_aberto.update_traces(
+                    textposition='outside'
+                )
+                fig_top_aberto.update_layout(
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis=dict(tickformat='.1%', title="% Em Aberto"),
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_top_aberto, use_container_width=True)
+            else:
+                st.info("Coluna 'taxa_devolucao_aberto' não encontrada no resumo.")
 
         st.write("---")
 
