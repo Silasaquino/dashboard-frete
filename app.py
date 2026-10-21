@@ -568,7 +568,6 @@ else:
                 df_resumo_temp = df_filtrado_resumo.copy()
                 df_resumo_temp['taxa_devolucao_seller'] = pd.to_numeric(df_resumo_temp['taxa_devolucao_seller'], errors='coerce')
                 
-                # Agrupa por Mês/Ano calculando a média ponderada/soma das taxas
                 if 'qtd_etr' in df_resumo_temp.columns and 'devolvido_seller' in df_resumo_temp.columns:
                     df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido').agg(
                         tot_etr=('qtd_etr', 'sum'),
@@ -582,12 +581,10 @@ else:
                 df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_ano_definido')
                 df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
                 
-                # Define as cores dos marcadores: Vermelho se > 9%, azul/tema se <= 9%
                 cores_pontos = ['#E53E3E' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
 
                 fig_linha_taxa = go.Figure()
 
-                # Adiciona a Linha da Taxa
                 fig_linha_taxa.add_trace(go.Scatter(
                     x=df_evolucao_taxa['mes_ano_definido'],
                     y=df_evolucao_taxa['taxa_calc'],
@@ -599,7 +596,6 @@ else:
                     name='Taxa Devolução Seller'
                 ))
 
-                # Adiciona a Linha Tracejada de Meta (9%)
                 fig_linha_taxa.add_shape(
                     type="line",
                     x0=df_evolucao_taxa['mes_ano_definido'].iloc[0],
@@ -609,7 +605,6 @@ else:
                     line=dict(color="#ECC94B", width=2, dash="dash")
                 )
 
-                # Rótulo explicativo da Meta
                 fig_linha_taxa.add_annotation(
                     x=df_evolucao_taxa['mes_ano_definido'].iloc[-1],
                     y=META_TAXA_SELLER,
@@ -649,7 +644,7 @@ else:
                     df_top_aberto.rename(columns={'taxa_devolucao_aberto': 'taxa_aberto'}, inplace=True)
 
                 df_top_aberto = df_top_aberto.sort_values('taxa_aberto', ascending=False).head(10)
-                df_top_aberto = df_top_aberto.sort_values('taxa_aberto', ascending=True)  # Ordena para exibição horizontal
+                df_top_aberto = df_top_aberto.sort_values('taxa_aberto', ascending=True)
                 df_top_aberto['taxa_str'] = df_top_aberto['taxa_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
 
                 fig_top_aberto = px.bar(
@@ -678,7 +673,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (BLOCO 2: BASE DE REMESSAS ÚNICAS E MOTIVOS)
+        # ANÁLISE GRÁFICA (BLOCO 2: REMESSAS ÚNICAS, TRACKING E MOTIVOS)
         # ==========================================
         st.markdown(
             "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
@@ -686,53 +681,92 @@ else:
         )
         st.write("")
 
-        col_graf1, col_graf2 = st.columns(2)
         colunas_unicas = [c for c in ['pedido', 'remessa_retorno', 'protocolo'] if c in df_filtrado_reversa.columns]
 
         # 📊 GRÁFICO 3: VOLUME DE REMESSAS ÚNICAS AGRUPADO POR MÊS/ANO
-        with col_graf1:
-            st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
-            col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
-            
-            if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                df_temp = df_filtrado_reversa.copy()
-                df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
-                df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
+        st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
+        col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+        
+        if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            df_temp = df_filtrado_reversa.copy()
+            df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
+            df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
 
+            if colunas_unicas:
+                df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
+                    lambda g: len(g.drop_duplicates(subset=colunas_unicas))
+                ).reset_index(name='qtd_remessas_unicas')
+            else:
+                df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
+
+            df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+
+            fig_tempo = px.bar(
+                df_grafico_mes,
+                x=col_mes_grafico,
+                y='qtd_remessas_unicas',
+                text='qtd_remessas_unicas',
+                labels={col_mes_grafico: 'Mês/Ano', 'qtd_remessas_unicas': 'Remessas Únicas'},
+                template=template_plotly,
+                color_discrete_sequence=[cor_grafico]
+            )
+            fig_tempo.update_traces(
+                texttemplate='%{text:,}',
+                textposition='outside'
+            )
+            fig_tempo.update_layout(
+                margin=dict(l=20, r=20, t=30, b=20),
+                height=350,
+                xaxis_title="",
+                yaxis_title="Remessas Únicas"
+            )
+            st.plotly_chart(fig_tempo, use_container_width=True)
+        else:
+            st.info("Sem dados suficientes para gerar o gráfico mensal.")
+
+        st.write("")
+
+        col_graf_tr, col_graf_mot = st.columns(2)
+
+        # 📊 GRÁFICO 4: DISTRIBUIÇÃO POR TRACKING (REMESSAS ÚNICAS)
+        with col_graf_tr:
+            st.subheader("🚚 Status do Tracking (Remessas Únicas)")
+            if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
                 if colunas_unicas:
-                    df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
-                        lambda g: len(g.drop_duplicates(subset=colunas_unicas))
-                    ).reset_index(name='qtd_remessas_unicas')
+                    df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
                 else:
-                    df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
+                    df_unicos_tr = df_filtrado_reversa.copy()
 
-                df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+                df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
+                df_tracking.columns = ['status_tracking', 'quantidade']
+                df_tracking = df_tracking.sort_values('quantidade', ascending=True)
 
-                fig_tempo = px.bar(
-                    df_grafico_mes,
-                    x=col_mes_grafico,
-                    y='qtd_remessas_unicas',
-                    text='qtd_remessas_unicas',
-                    labels={col_mes_grafico: 'Mês/Ano', 'qtd_remessas_unicas': 'Remessas Únicas'},
+                fig_tracking = px.bar(
+                    df_tracking,
+                    x='quantidade',
+                    y='status_tracking',
+                    text='quantidade',
+                    orientation='h',
+                    labels={'quantidade': 'Remessas Únicas', 'status_tracking': 'Status Tracking'},
                     template=template_plotly,
                     color_discrete_sequence=[cor_grafico]
                 )
-                fig_tempo.update_traces(
+                fig_tracking.update_traces(
                     texttemplate='%{text:,}',
                     textposition='outside'
                 )
-                fig_tempo.update_layout(
+                fig_tracking.update_layout(
                     margin=dict(l=20, r=20, t=30, b=20),
                     height=380,
-                    xaxis_title="",
-                    yaxis_title="Remessas Únicas"
+                    xaxis_title="Remessas Únicas",
+                    yaxis_title=""
                 )
-                st.plotly_chart(fig_tempo, use_container_width=True)
+                st.plotly_chart(fig_tracking, use_container_width=True)
             else:
-                st.info("Sem dados suficientes para gerar o gráfico mensal.")
+                st.info("Coluna 'tracking' não encontrada na tabela.")
 
-        # 📊 GRÁFICO 4: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
-        with col_graf2:
+        # 📊 GRÁFICO 5: PRINCIPAIS MOTIVOS DE TROCA (BASEADO EM REMESSAS ÚNICAS)
+        with col_graf_mot:
             st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
                 if colunas_unicas:
