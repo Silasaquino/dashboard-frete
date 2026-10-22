@@ -301,9 +301,11 @@ else:
 
     with col_header_tema:
         st.markdown("<span style='font-size: 14px; font-weight: bold;'>🎨 Tema:</span>", unsafe_allow_html=True)
+        # ESCOU COMO TEMA PADRÃO (LISTADO EM PRIMEIRO LUGAR NA LISTA E COM INDEX=0)
         tema_selecionado = st.selectbox(
             "Tema do Dashboard",
-            ["Claro ☀️", "Escuro 🌙"],
+            ["Escuro 🌙", "Claro ☀️"],
+            index=0,
             label_visibility="collapsed"
         )
 
@@ -831,13 +833,7 @@ else:
                     )
                     df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
 
-                    # Cores dinâmicas: Ênfase especial em Vermelho de Alerta para +5 DIAS CORRIDOS
-                    cores_barras_seller = [
-                        '#E53E3E' if str(g).strip().upper() == '+5 DIAS CORRIDOS' else '#3182CE'
-                        for g in df_grupo_seller['grupo_dias']
-                    ]
-
-                    # Nomes personalizados do eixo X para dar ênfase
+                    # Nomes personalizados do eixo X para dar ênfase ao gargalo crítico
                     df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(
                         lambda g: "⚠️ +5 DIAS CORRIDOS" if "5 DIAS" in g and "+" in g else g
                     )
@@ -886,7 +882,7 @@ else:
         st.write("")
         st.write("---")
 
-        # 📊 GRÁFICO 6: JORNADA DO TRACKING (ESTAQUE TOTAL EM LARGURA COMPLETA)
+        # 📊 GRÁFICO 6: JORNADA DO TRACKING (DESTAQUE TOTAL EM LARGURA COMPLETA)
         st.markdown(
             "<h3 style='text-align: center; margin-top: 10px;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", 
             unsafe_allow_html=True
