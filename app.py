@@ -742,9 +742,116 @@ else:
 
         st.write("")
 
-        col_graf_mot, col_graf_tr = st.columns(2)
+        # 📊 GRÁFICO 4: JORNADA DO TRACKING (HTML/CSS SEQUENCIAL ESTILO CHEVRON CONECTADO)
+        st.subheader("🚚 Jornada do Tracking (Etapas Sequenciais da Reversa)")
+        if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            if colunas_unicas:
+                df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
+            else:
+                df_unicos_tr = df_filtrado_reversa.copy()
 
-        # 📊 GRÁFICO 4: PRINCIPAIS MOTIVOS DE TROCA (COM QUANTIDADE E PERCENTUAL)
+            df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
+            df_tracking.columns = ['status_tracking', 'quantidade']
+            total_tracking = df_tracking['quantidade'].sum()
+
+            ordem_jornada = [
+                'EM ABERTO',
+                'POSTADO',
+                'ENTREGUE AO SELLER',
+                'FINALIZADO',
+                'REVERSAS EXPIRADAS',
+                'EXTRAVIO'
+            ]
+
+            mapa_cores_jornada = {
+                'EM ABERTO': '#DD6B20',            # Laranja
+                'POSTADO': '#3182CE',             # Azul padrão
+                'ENTREGUE AO SELLER': '#38A169',  # Verde
+                'FINALIZADO': '#319795',          # Azul petróleo/Verde água
+                'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
+                'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
+            }
+
+            mapa_dados = dict(zip(df_tracking['status_tracking'], df_tracking['quantidade']))
+
+            html_jornada = """
+            <style>
+                .pipeline-container {
+                    display: flex;
+                    flex-wrap: nowrap;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 6px;
+                    margin: 15px 0 25px 0;
+                    width: 100%;
+                }
+                .pipeline-step {
+                    flex: 1;
+                    position: relative;
+                    background-color: #3182CE;
+                    color: white;
+                    padding: 14px 10px 14px 22px;
+                    font-size: 13px;
+                    font-weight: bold;
+                    text-align: center;
+                    clip-path: polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%, 15% 50%);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                }
+                .pipeline-step:first-child {
+                    clip-path: polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%);
+                    border-top-left-radius: 6px;
+                    border-bottom-left-radius: 6px;
+                }
+                .pipeline-step:last-child {
+                    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 15% 50%);
+                    border-top-right-radius: 6px;
+                    border-bottom-right-radius: 6px;
+                }
+                .pipeline-title {
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    opacity: 0.95;
+                    white-space: nowrap;
+                }
+                .pipeline-value {
+                    font-size: 16px;
+                    font-weight: 800;
+                    margin-top: 4px;
+                }
+                .pipeline-pct {
+                    font-size: 11px;
+                    font-weight: 600;
+                    opacity: 0.88;
+                }
+            </style>
+            <div class="pipeline-container">
+            """
+
+            for status in ordem_jornada:
+                qtd = mapa_dados.get(status, 0)
+                pct = (qtd / total_tracking * 100) if total_tracking > 0 else 0
+                cor = mapa_cores_jornada.get(status, '#3182CE')
+                qtd_str = f"{qtd:,}".replace(",", ".")
+
+                html_jornada += f"""
+                <div class="pipeline-step" style="background-color: {cor};">
+                    <div class="pipeline-title">{status}</div>
+                    <div class="pipeline-value">{qtd_str}</div>
+                    <div class="pipeline-pct">({pct:.1f}%)</div>
+                </div>
+                """
+
+            html_jornada += "</div>"
+            st.markdown(html_jornada, unsafe_allow_html=True)
+        else:
+            st.info("Coluna 'tracking' não encontrada na tabela.")
+
+        st.write("")
+
+        col_graf_mot, col_graf_grupo = st.columns(2)
+
+        # 📊 GRÁFICO 5: PRINCIPAIS MOTIVOS DE TROCA
         with col_graf_mot:
             st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -758,7 +865,6 @@ else:
                 total_motivos = df_motivos['quantidade'].sum()
                 df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
 
-                # Cria o rótulo formatado com Quantidade + Percentual
                 df_motivos['rotulo'] = df_motivos['quantidade'].apply(
                     lambda v: f"{v:,} ({(v / total_motivos) * 100:.1f}%)".replace(",", ".")
                 )
@@ -793,153 +899,75 @@ else:
             else:
                 st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
 
-        # 📊 GRÁFICO 5: FUNIL DO TRACKING (ORDEM LÓGICA DO PROCESSO OPERACIONAL)
-        with col_graf_tr:
-            st.subheader("🚚 Funil do Tracking (Etapas da Reversa)")
-            if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                if colunas_unicas:
-                    df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
-                else:
-                    df_unicos_tr = df_filtrado_reversa.copy()
-
-                df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
-                df_tracking.columns = ['status_tracking', 'quantidade']
-                total_tracking = df_tracking['quantidade'].sum()
-
-                # Define a ordem sequencial lógica do fluxo operacional
-                ordem_funil = [
-                    'EM ABERTO',
-                    'POSTADO',
-                    'ENTREGUE AO SELLER',
-                    'FINALIZADO',
-                    'REVERSAS EXPIRADAS',
-                    'EXTRAVIO'
+        # 📊 GRÁFICO 6: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (GRUPO ABERTO SELLER)
+        with col_graf_grupo:
+            st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
+            if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_entregue_seller = df_filtrado_reversa[
+                    df_filtrado_reversa['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
                 ]
 
-                df_tracking['status_tracking'] = pd.Categorical(
-                    df_tracking['status_tracking'],
-                    categories=ordem_funil,
-                    ordered=True
-                )
-                df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
+                if not df_entregue_seller.empty:
+                    if colunas_unicas:
+                        df_unicos_grupo = df_entregue_seller.drop_duplicates(subset=colunas_unicas)
+                    else:
+                        df_unicos_grupo = df_entregue_seller.copy()
 
-                # Cria o rótulo formatado com Quantidade + Percentual
-                df_tracking['rotulo'] = df_tracking['quantidade'].apply(
-                    lambda v: f"{v:,} ({(v / total_tracking) * 100:.1f}%)".replace(",", ".")
-                )
+                    df_grupo_seller = df_unicos_grupo['grupo_aberto_seller'].value_counts().reset_index()
+                    df_grupo_seller.columns = ['grupo_dias', 'quantidade']
+                    total_grupo = df_grupo_seller['quantidade'].sum()
 
-                mapa_cores = {
-                    'EM ABERTO': '#DD6B20',            # Laranja (Início/Atenção)
-                    'POSTADO': '#3182CE',             # Azul padrão (Trânsito)
-                    'ENTREGUE AO SELLER': '#38A169',  # Verde (Recebido)
-                    'FINALIZADO': '#90CDF4',          # Azul claro (Concluído)
-                    'REVERSAS EXPIRADAS': '#FEB2B2',  # Vermelho claro (Inativo)
-                    'EXTRAVIO': '#E53E3E'              # Vermelho (Alerta)
-                }
+                    df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
+                        lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".")
+                    )
 
-                fig_tracking = px.bar(
-                    df_tracking,
-                    x='quantidade',
-                    y='status_tracking',
-                    text='rotulo',
-                    orientation='h',
-                    color='status_tracking',
-                    color_discrete_map=mapa_cores,
-                    labels={'quantidade': 'Remessas Únicas', 'status_tracking': 'Etapa do Processo'},
-                    template=template_plotly
-                )
+                    ordem_grupos = [
+                        '0 DIAS CORRIDOS',
+                        '1 DIAS CORRIDOS',
+                        '2 DIAS CORRIDOS',
+                        '3 DIAS CORRIDOS',
+                        '4 DIAS CORRIDOS',
+                        '5 DIAS CORRIDOS',
+                        '+5 DIAS CORRIDOS'
+                    ]
 
-                max_val = df_tracking['quantidade'].max() if not df_tracking.empty else 100
+                    df_grupo_seller['grupo_dias'] = pd.Categorical(
+                        df_grupo_seller['grupo_dias'],
+                        categories=ordem_grupos,
+                        ordered=True
+                    )
+                    df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
 
-                fig_tracking.update_traces(
-                    textposition='outside'
-                )
-                fig_tracking.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=20, r=120, t=30, b=20),
-                    height=380,
-                    xaxis=dict(range=[0, max_val * 1.45], showgrid=False),
-                    yaxis=dict(autorange="reversed", showgrid=False),  # Renderiza de cima para baixo
-                    xaxis_title="Remessas Únicas",
-                    yaxis_title="",
-                    showlegend=False
-                )
-                st.plotly_chart(fig_tracking, use_container_width=True)
-            else:
-                st.info("Coluna 'tracking' não encontrada na tabela.")
+                    fig_grupo_seller = px.bar(
+                        df_grupo_seller,
+                        x='grupo_dias',
+                        y='quantidade',
+                        text='rotulo',
+                        labels={'grupo_dias': 'Faixa de Dias no Seller', 'quantidade': 'Remessas Únicas'},
+                        template=template_plotly,
+                        color_discrete_sequence=['#ED8936']
+                    )
 
-        st.write("")
+                    max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
 
-        # 📊 GRÁFICO 6: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (COM QUANTIDADE E PERCENTUAL)
-        st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
-        if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            df_entregue_seller = df_filtrado_reversa[
-                df_filtrado_reversa['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
-            ]
-
-            if not df_entregue_seller.empty:
-                if colunas_unicas:
-                    df_unicos_grupo = df_entregue_seller.drop_duplicates(subset=colunas_unicas)
+                    fig_grupo_seller.update_traces(
+                        textposition='outside'
+                    )
+                    fig_grupo_seller.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        height=380,
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
+                        xaxis_title="",
+                        yaxis_title="Remessas Únicas"
+                    )
+                    st.plotly_chart(fig_grupo_seller, use_container_width=True)
                 else:
-                    df_unicos_grupo = df_entregue_seller.copy()
-
-                df_grupo_seller = df_unicos_grupo['grupo_aberto_seller'].value_counts().reset_index()
-                df_grupo_seller.columns = ['grupo_dias', 'quantidade']
-                total_grupo = df_grupo_seller['quantidade'].sum()
-
-                # Cria o rótulo formatado com Quantidade + Percentual
-                df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
-                    lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".")
-                )
-
-                ordem_grupos = [
-                    '0 DIAS CORRIDOS',
-                    '1 DIAS CORRIDOS',
-                    '2 DIAS CORRIDOS',
-                    '3 DIAS CORRIDOS',
-                    '4 DIAS CORRIDOS',
-                    '5 DIAS CORRIDOS',
-                    '+5 DIAS CORRIDOS'
-                ]
-
-                df_grupo_seller['grupo_dias'] = pd.Categorical(
-                    df_grupo_seller['grupo_dias'],
-                    categories=ordem_grupos,
-                    ordered=True
-                )
-                df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
-
-                fig_grupo_seller = px.bar(
-                    df_grupo_seller,
-                    x='grupo_dias',
-                    y='quantidade',
-                    text='rotulo',
-                    labels={'grupo_dias': 'Faixa de Dias no Seller', 'quantidade': 'Remessas Únicas'},
-                    template=template_plotly,
-                    color_discrete_sequence=['#ED8936']
-                )
-
-                max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
-
-                fig_grupo_seller.update_traces(
-                    textposition='outside'
-                )
-                fig_grupo_seller.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=20, r=20, t=30, b=20),
-                    height=350,
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
-                    xaxis_title="",
-                    yaxis_title="Remessas Únicas"
-                )
-                st.plotly_chart(fig_grupo_seller, use_container_width=True)
+                    st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período e filtros selecionados.")
             else:
-                st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período e filtros selecionados.")
-        else:
-            st.info("Coluna 'grupo_aberto_seller' não encontrada na base.")
+                st.info("Coluna 'grupo_aberto_seller' não encontrada na base.")
 
         st.write("---")
 
