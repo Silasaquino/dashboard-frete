@@ -793,9 +793,9 @@ else:
             else:
                 st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
 
-        # 📊 GRÁFICO 5: DISTRIBUIÇÃO POR TRACKING (COM QUANTIDADE E PERCENTUAL - MAIOR NO TOPO)
+        # 📊 GRÁFICO 5: FUNIL DO TRACKING (ORDEM LÓGICA DO PROCESSO OPERACIONAL)
         with col_graf_tr:
-            st.subheader("🚚 Status do Tracking (Remessas Únicas)")
+            st.subheader("🚚 Funil do Tracking (Etapas da Reversa)")
             if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
                 if colunas_unicas:
                     df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
@@ -805,7 +805,23 @@ else:
                 df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
                 df_tracking.columns = ['status_tracking', 'quantidade']
                 total_tracking = df_tracking['quantidade'].sum()
-                df_tracking = df_tracking.sort_values('quantidade', ascending=True)
+
+                # Define a ordem sequencial lógica do fluxo operacional
+                ordem_funil = [
+                    'EM ABERTO',
+                    'POSTADO',
+                    'ENTREGUE AO SELLER',
+                    'FINALIZADO',
+                    'REVERSAS EXPIRADAS',
+                    'EXTRAVIO'
+                ]
+
+                df_tracking['status_tracking'] = pd.Categorical(
+                    df_tracking['status_tracking'],
+                    categories=ordem_funil,
+                    ordered=True
+                )
+                df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
 
                 # Cria o rótulo formatado com Quantidade + Percentual
                 df_tracking['rotulo'] = df_tracking['quantidade'].apply(
@@ -813,12 +829,12 @@ else:
                 )
 
                 mapa_cores = {
-                    'FINALIZADO': '#90CDF4',          # Azul claro / discreto
-                    'ENTREGUE AO SELLER': '#38A169',  # Verde
-                    'POSTADO': '#3182CE',             # Azul padrão
-                    'EM ABERTO': '#DD6B20',            # Laranja
-                    'EXTRAVIO': '#E53E3E',             # Vermelho
-                    'REVERSAS EXPIRADAS': '#FEB2B2'   # Vermelho claro
+                    'EM ABERTO': '#DD6B20',            # Laranja (Início/Atenção)
+                    'POSTADO': '#3182CE',             # Azul padrão (Trânsito)
+                    'ENTREGUE AO SELLER': '#38A169',  # Verde (Recebido)
+                    'FINALIZADO': '#90CDF4',          # Azul claro (Concluído)
+                    'REVERSAS EXPIRADAS': '#FEB2B2',  # Vermelho claro (Inativo)
+                    'EXTRAVIO': '#E53E3E'              # Vermelho (Alerta)
                 }
 
                 fig_tracking = px.bar(
@@ -829,7 +845,7 @@ else:
                     orientation='h',
                     color='status_tracking',
                     color_discrete_map=mapa_cores,
-                    labels={'quantidade': 'Remessas Únicas', 'status_tracking': 'Status Tracking'},
+                    labels={'quantidade': 'Remessas Únicas', 'status_tracking': 'Etapa do Processo'},
                     template=template_plotly
                 )
 
@@ -844,7 +860,7 @@ else:
                     margin=dict(l=20, r=120, t=30, b=20),
                     height=380,
                     xaxis=dict(range=[0, max_val * 1.45], showgrid=False),
-                    yaxis=dict(autorange="reversed", showgrid=False),  # Inverte o eixo Y para o maior valor (FINALIZADO) ficar no topo
+                    yaxis=dict(autorange="reversed", showgrid=False),  # Renderiza de cima para baixo
                     xaxis_title="Remessas Únicas",
                     yaxis_title="",
                     showlegend=False
