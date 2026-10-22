@@ -882,7 +882,7 @@ else:
         st.write("")
         st.write("---")
 
-        # 📊 GRÁFICO 6: JORNADA DO TRACKING (DESTAQUE TOTAL EM LARGURA COMPLETA)
+        # 📊 GRÁFICO 6: JORNADA DO TRACKING (SEM SOBREPOSIÇÃO DE RÓTULOS NA LINHA PONTILHADA)
         st.markdown(
             "<h3 style='text-align: center; margin-top: 10px;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", 
             unsafe_allow_html=True
@@ -915,16 +915,16 @@ else:
 
             mapa_cores_jornada = {
                 'EM ABERTO': '#DD6B20',            # Laranja
-                'POSTADO/TRANSPORTADOR': '#3182CE',             # Azul padrão
+                'POSTADO/TRANSPORTADOR': '#3182CE', # Azul padrão
                 'ENTREGUE AO SELLER': '#38A169',  # Verde
                 'FINALIZADO': '#319795',          # Azul/Verde água
                 'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
                 'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
             }
 
-            # Coordenadas da curva sinusoidal (S-Curve) bem definida e ampliada
+            # Amplitude da curva Y otimizada para distanciar o texto do traço
             x_pts = [1, 2, 3, 4, 5, 6]
-            y_pts = [1.2, 2.6, 1.6, 3.1, 1.4, 2.3]
+            y_pts = [1.0, 3.2, 1.0, 3.4, 1.0, 2.2]
 
             fig_jornada = go.Figure()
 
@@ -938,7 +938,7 @@ else:
                 showlegend=False
             ))
 
-            # Criação dos pontos destacados da linha do tempo
+            # Criação dos pontos com deslocamento de texto ajustado (yshift)
             for idx, row in enumerate(df_tracking.iterrows()):
                 status = row[1]['status_tracking']
                 qtd = row[1]['quantidade']
@@ -946,7 +946,14 @@ else:
                 cor = mapa_cores_jornada.get(status, '#3182CE')
                 qtd_str = f"{qtd:,}".replace(",", ".")
 
-                pos = "top center" if idx % 2 == 0 else "bottom center"
+                # Define se o texto fica acima ou abaixo com offset (yshift) seguro
+                if idx % 2 == 0:
+                    pos = "top center"
+                    y_shift = 15
+                else:
+                    pos = "bottom center"
+                    y_shift = -15
+
                 texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>"
 
                 fig_jornada.add_trace(go.Scatter(
@@ -955,18 +962,21 @@ else:
                     mode='markers+text',
                     text=[texto_no],
                     textposition=pos,
-                    marker=dict(size=28, color=cor, line=dict(color='white', width=3)),
+                    textfont=dict(size=12),
+                    marker=dict(size=26, color=cor, line=dict(color='white', width=3)),
                     showlegend=False,
                     hoverinfo='text'
                 ))
 
+            fig_jornada.update_traces(yshift=15, selector=dict(mode='markers+text'))
+
             fig_jornada.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=40, r=40, t=60, b=60),
-                height=420,
+                margin=dict(l=40, r=40, t=70, b=70),
+                height=450,
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 6.6]),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 3.9])
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.2, 4.2])
             )
 
             st.plotly_chart(fig_jornada, use_container_width=True)
