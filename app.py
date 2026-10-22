@@ -938,7 +938,7 @@ else:
                 showlegend=False
             ))
 
-            # Criação dos pontos com deslocamento de texto ajustado (yshift)
+            # Criação dos pontos com posições de texto seguras sem update_traces
             for idx, row in enumerate(df_tracking.iterrows()):
                 status = row[1]['status_tracking']
                 qtd = row[1]['quantidade']
@@ -946,14 +946,7 @@ else:
                 cor = mapa_cores_jornada.get(status, '#3182CE')
                 qtd_str = f"{qtd:,}".replace(",", ".")
 
-                # Define se o texto fica acima ou abaixo com offset (yshift) seguro
-                if idx % 2 == 0:
-                    pos = "top center"
-                    y_shift = 15
-                else:
-                    pos = "bottom center"
-                    y_shift = -15
-
+                pos = "top center" if idx % 2 == 0 else "bottom center"
                 texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>"
 
                 fig_jornada.add_trace(go.Scatter(
@@ -967,8 +960,6 @@ else:
                     showlegend=False,
                     hoverinfo='text'
                 ))
-
-            fig_jornada.update_traces(yshift=15, selector=dict(mode='markers+text'))
 
             fig_jornada.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
