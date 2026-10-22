@@ -742,8 +742,8 @@ else:
 
         st.write("")
 
-        # 📊 GRÁFICO 4: JORNADA DO TRACKING (HTML/CSS SEQUENCIAL ESTILO CHEVRON CONECTADO)
-        st.subheader("🚚 Jornada do Tracking (Etapas Sequenciais da Reversa)")
+        # 📊 GRÁFICO 4: JORNADA DO TRACKING (S-CURVE TIMELINE ESTILO JORNADA DO CLIENTE)
+        st.subheader("🚚 Jornada do Tracking (Etapas da Reversa)")
         if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
             if colunas_unicas:
                 df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
@@ -763,87 +763,70 @@ else:
                 'EXTRAVIO'
             ]
 
+            df_tracking['status_tracking'] = pd.Categorical(
+                df_tracking['status_tracking'],
+                categories=ordem_jornada,
+                ordered=True
+            )
+            df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
+
             mapa_cores_jornada = {
                 'EM ABERTO': '#DD6B20',            # Laranja
                 'POSTADO': '#3182CE',             # Azul padrão
                 'ENTREGUE AO SELLER': '#38A169',  # Verde
-                'FINALIZADO': '#319795',          # Azul petróleo/Verde água
+                'FINALIZADO': '#319795',          # Azul/Verde água
                 'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
                 'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
             }
 
-            mapa_dados = dict(zip(df_tracking['status_tracking'], df_tracking['quantidade']))
+            # Coordenadas da curva sinusoidal (S-Curve)
+            x_pts = [1, 2, 3, 4, 5, 6]
+            y_pts = [1, 2.5, 1.8, 3, 1.5, 2.2]
 
-            html_jornada = """
-            <style>
-                .pipeline-container {
-                    display: flex;
-                    flex-wrap: nowrap;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 6px;
-                    margin: 15px 0 25px 0;
-                    width: 100%;
-                }
-                .pipeline-step {
-                    flex: 1;
-                    position: relative;
-                    background-color: #3182CE;
-                    color: white;
-                    padding: 14px 10px 14px 22px;
-                    font-size: 13px;
-                    font-weight: bold;
-                    text-align: center;
-                    clip-path: polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%, 15% 50%);
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-                }
-                .pipeline-step:first-child {
-                    clip-path: polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%);
-                    border-top-left-radius: 6px;
-                    border-bottom-left-radius: 6px;
-                }
-                .pipeline-step:last-child {
-                    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 15% 50%);
-                    border-top-right-radius: 6px;
-                    border-bottom-right-radius: 6px;
-                }
-                .pipeline-title {
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    opacity: 0.95;
-                    white-space: nowrap;
-                }
-                .pipeline-value {
-                    font-size: 16px;
-                    font-weight: 800;
-                    margin-top: 4px;
-                }
-                .pipeline-pct {
-                    font-size: 11px;
-                    font-weight: 600;
-                    opacity: 0.88;
-                }
-            </style>
-            <div class="pipeline-container">
-            """
+            fig_jornada = go.Figure()
 
-            for status in ordem_jornada:
-                qtd = mapa_dados.get(status, 0)
+            # Linha pontilhada conectando as etapas
+            fig_jornada.add_trace(go.Scatter(
+                x=x_pts,
+                y=y_pts,
+                mode='lines',
+                line=dict(color='#A0AEC0', width=3, dash='dash'),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+
+            # Criação dos pontos da linha do tempo
+            for idx, row in enumerate(df_tracking.iterrows()):
+                status = row[1]['status_tracking']
+                qtd = row[1]['quantidade']
                 pct = (qtd / total_tracking * 100) if total_tracking > 0 else 0
                 cor = mapa_cores_jornada.get(status, '#3182CE')
                 qtd_str = f"{qtd:,}".replace(",", ".")
 
-                html_jornada += f"""
-                <div class="pipeline-step" style="background-color: {cor};">
-                    <div class="pipeline-title">{status}</div>
-                    <div class="pipeline-value">{qtd_str}</div>
-                    <div class="pipeline-pct">({pct:.1f}%)</div>
-                </div>
-                """
+                pos = "top center" if idx % 2 == 0 else "bottom center"
+                texto_no = f"<b>{status}</b><br>{qtd_str} ({pct:.1f}%)"
 
-            html_jornada += "</div>"
-            st.markdown(html_jornada, unsafe_allow_html=True)
+                fig_jornada.add_trace(go.Scatter(
+                    x=[x_pts[idx]],
+                    y=[y_pts[idx]],
+                    mode='markers+text',
+                    text=[texto_no],
+                    textposition=pos,
+                    marker=dict(size=22, color=cor, line=dict(color='white', width=2)),
+                    showlegend=False,
+                    hoverinfo='text'
+                ))
+
+            fig_jornada.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=30, r=30, t=50, b=50),
+                height=320,
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.5, 6.5]),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.5, 3.8])
+            )
+
+            st.plotly_chart(fig_jornada, use_container_width=True)
         else:
             st.info("Coluna 'tracking' não encontrada na tabela.")
 
