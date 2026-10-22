@@ -685,7 +685,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (BLOCO 2: REMESSAS ÚNICAS, TRACKING E MOTIVOS)
+        # ANÁLISE GRÁFICA (BLOCO 2: REMESSAS ÚNICAS, MOTIVOS, SELLER E JORNADA DO TRACKING)
         # ==========================================
         st.markdown(
             "<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", 
@@ -742,99 +742,9 @@ else:
 
         st.write("")
 
-        # 📊 GRÁFICO 4: JORNADA DO TRACKING (S-CURVE TIMELINE ESTILO JORNADA DO CLIENTE)
-        st.subheader("🚚 Jornada do Tracking (Etapas da Reversa)")
-        if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            if colunas_unicas:
-                df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
-            else:
-                df_unicos_tr = df_filtrado_reversa.copy()
-
-            df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
-            df_tracking.columns = ['status_tracking', 'quantidade']
-            total_tracking = df_tracking['quantidade'].sum()
-
-            ordem_jornada = [
-                'EM ABERTO',
-                'POSTADO',
-                'ENTREGUE AO SELLER',
-                'FINALIZADO',
-                'REVERSAS EXPIRADAS',
-                'EXTRAVIO'
-            ]
-
-            df_tracking['status_tracking'] = pd.Categorical(
-                df_tracking['status_tracking'],
-                categories=ordem_jornada,
-                ordered=True
-            )
-            df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
-
-            mapa_cores_jornada = {
-                'EM ABERTO': '#DD6B20',            # Laranja
-                'POSTADO': '#3182CE',             # Azul padrão
-                'ENTREGUE AO SELLER': '#38A169',  # Verde
-                'FINALIZADO': '#319795',          # Azul/Verde água
-                'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
-                'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
-            }
-
-            # Coordenadas da curva sinusoidal (S-Curve)
-            x_pts = [1, 2, 3, 4, 5, 6]
-            y_pts = [1, 2.5, 1.8, 3, 1.5, 2.2]
-
-            fig_jornada = go.Figure()
-
-            # Linha pontilhada conectando as etapas
-            fig_jornada.add_trace(go.Scatter(
-                x=x_pts,
-                y=y_pts,
-                mode='lines',
-                line=dict(color='#A0AEC0', width=3, dash='dash'),
-                hoverinfo='skip',
-                showlegend=False
-            ))
-
-            # Criação dos pontos da linha do tempo
-            for idx, row in enumerate(df_tracking.iterrows()):
-                status = row[1]['status_tracking']
-                qtd = row[1]['quantidade']
-                pct = (qtd / total_tracking * 100) if total_tracking > 0 else 0
-                cor = mapa_cores_jornada.get(status, '#3182CE')
-                qtd_str = f"{qtd:,}".replace(",", ".")
-
-                pos = "top center" if idx % 2 == 0 else "bottom center"
-                texto_no = f"<b>{status}</b><br>{qtd_str} ({pct:.1f}%)"
-
-                fig_jornada.add_trace(go.Scatter(
-                    x=[x_pts[idx]],
-                    y=[y_pts[idx]],
-                    mode='markers+text',
-                    text=[texto_no],
-                    textposition=pos,
-                    marker=dict(size=22, color=cor, line=dict(color='white', width=2)),
-                    showlegend=False,
-                    hoverinfo='text'
-                ))
-
-            fig_jornada.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=30, r=30, t=50, b=50),
-                height=320,
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.5, 6.5]),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.5, 3.8])
-            )
-
-            st.plotly_chart(fig_jornada, use_container_width=True)
-        else:
-            st.info("Coluna 'tracking' não encontrada na tabela.")
-
-        st.write("")
-
         col_graf_mot, col_graf_grupo = st.columns(2)
 
-        # 📊 GRÁFICO 5: PRINCIPAIS MOTIVOS DE TROCA
+        # 📊 GRÁFICO 4: PRINCIPAIS MOTIVOS DE TROCA
         with col_graf_mot:
             st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -882,7 +792,7 @@ else:
             else:
                 st.info("Coluna 'motivo_troca' não encontrada para gerar o gráfico de motivos.")
 
-        # 📊 GRÁFICO 6: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (GRUPO ABERTO SELLER)
+        # 📊 GRÁFICO 5: SELLERS - DIAS COM PACOTE ENTREGUE SEM FINALIZAR (COM ÊNFASE EM +5 DIAS)
         with col_graf_grupo:
             st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
             if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -921,14 +831,34 @@ else:
                     )
                     df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
 
+                    # Cores dinâmicas: Ênfase especial em Vermelho de Alerta para +5 DIAS CORRIDOS
+                    cores_barras_seller = [
+                        '#E53E3E' if str(g).strip().upper() == '+5 DIAS CORRIDOS' else '#3182CE'
+                        for g in df_grupo_seller['grupo_dias']
+                    ]
+
+                    # Nomes personalizados do eixo X para dar ênfase
+                    df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(
+                        lambda g: "⚠️ +5 DIAS CORRIDOS" if "5 DIAS" in g and "+" in g else g
+                    )
+
                     fig_grupo_seller = px.bar(
                         df_grupo_seller,
-                        x='grupo_dias',
+                        x='grupo_exibicao',
                         y='quantidade',
                         text='rotulo',
-                        labels={'grupo_dias': 'Faixa de Dias no Seller', 'quantidade': 'Remessas Únicas'},
+                        labels={'grupo_exibicao': 'Faixa de Dias no Seller', 'quantidade': 'Remessas Únicas'},
                         template=template_plotly,
-                        color_discrete_sequence=['#ED8936']
+                        color='grupo_exibicao',
+                        color_discrete_map={
+                            '⚠️ +5 DIAS CORRIDOS': '#E53E3E',
+                            '0 DIAS CORRIDOS': '#A0AEC0',
+                            '1 DIAS CORRIDOS': '#63B3ED',
+                            '2 DIAS CORRIDOS': '#4299E1',
+                            '3 DIAS CORRIDOS': '#3182CE',
+                            '4 DIAS CORRIDOS': '#2B6CB0',
+                            '5 DIAS CORRIDOS': '#DD6B20'
+                        }
                     )
 
                     max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
@@ -944,13 +874,108 @@ else:
                         xaxis=dict(showgrid=False),
                         yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
                         xaxis_title="",
-                        yaxis_title="Remessas Únicas"
+                        yaxis_title="Remessas Únicas",
+                        showlegend=False
                     )
                     st.plotly_chart(fig_grupo_seller, use_container_width=True)
                 else:
                     st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período e filtros selecionados.")
             else:
                 st.info("Coluna 'grupo_aberto_seller' não encontrada na base.")
+
+        st.write("")
+        st.write("---")
+
+        # 📊 GRÁFICO 6: JORNADA DO TRACKING (ESTAQUE TOTAL EM LARGURA COMPLETA)
+        st.markdown(
+            "<h3 style='text-align: center; margin-top: 10px;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", 
+            unsafe_allow_html=True
+        )
+        if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            if colunas_unicas:
+                df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_unicas)
+            else:
+                df_unicos_tr = df_filtrado_reversa.copy()
+
+            df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
+            df_tracking.columns = ['status_tracking', 'quantidade']
+            total_tracking = df_tracking['quantidade'].sum()
+
+            ordem_jornada = [
+                'EM ABERTO',
+                'POSTADO',
+                'ENTREGUE AO SELLER',
+                'FINALIZADO',
+                'REVERSAS EXPIRADAS',
+                'EXTRAVIO'
+            ]
+
+            df_tracking['status_tracking'] = pd.Categorical(
+                df_tracking['status_tracking'],
+                categories=ordem_jornada,
+                ordered=True
+            )
+            df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
+
+            mapa_cores_jornada = {
+                'EM ABERTO': '#DD6B20',            # Laranja
+                'POSTADO': '#3182CE',             # Azul padrão
+                'ENTREGUE AO SELLER': '#38A169',  # Verde
+                'FINALIZADO': '#319795',          # Azul/Verde água
+                'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
+                'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
+            }
+
+            # Coordenadas da curva sinusoidal (S-Curve) bem definida e ampliada
+            x_pts = [1, 2, 3, 4, 5, 6]
+            y_pts = [1.2, 2.6, 1.6, 3.1, 1.4, 2.3]
+
+            fig_jornada = go.Figure()
+
+            # Linha pontilhada conectando as etapas
+            fig_jornada.add_trace(go.Scatter(
+                x=x_pts,
+                y=y_pts,
+                mode='lines',
+                line=dict(color='#A0AEC0', width=4, dash='dash'),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+
+            # Criação dos pontos destacados da linha do tempo
+            for idx, row in enumerate(df_tracking.iterrows()):
+                status = row[1]['status_tracking']
+                qtd = row[1]['quantidade']
+                pct = (qtd / total_tracking * 100) if total_tracking > 0 else 0
+                cor = mapa_cores_jornada.get(status, '#3182CE')
+                qtd_str = f"{qtd:,}".replace(",", ".")
+
+                pos = "top center" if idx % 2 == 0 else "bottom center"
+                texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>"
+
+                fig_jornada.add_trace(go.Scatter(
+                    x=[x_pts[idx]],
+                    y=[y_pts[idx]],
+                    mode='markers+text',
+                    text=[texto_no],
+                    textposition=pos,
+                    marker=dict(size=28, color=cor, line=dict(color='white', width=3)),
+                    showlegend=False,
+                    hoverinfo='text'
+                ))
+
+            fig_jornada.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=40, r=40, t=60, b=60),
+                height=420,
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 6.6]),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 3.9])
+            )
+
+            st.plotly_chart(fig_jornada, use_container_width=True)
+        else:
+            st.info("Coluna 'tracking' não encontrada na tabela.")
 
         st.write("---")
 
