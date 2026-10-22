@@ -301,7 +301,6 @@ else:
 
     with col_header_tema:
         st.markdown("<span style='font-size: 14px; font-weight: bold;'>🎨 Tema:</span>", unsafe_allow_html=True)
-        # ESCOU COMO TEMA PADRÃO (LISTADO EM PRIMEIRO LUGAR NA LISTA E COM INDEX=0)
         tema_selecionado = st.selectbox(
             "Tema do Dashboard",
             ["Escuro 🌙", "Claro ☀️"],
@@ -922,9 +921,9 @@ else:
                 'EXTRAVIO': '#9B2C2C'              # Vermelho escuro
             }
 
-            # Amplitude da curva Y otimizada para distanciar o texto do traço
+            # Amplitude Y expandida: Alternando estritamente entre Base (0.8) e Topo (3.5)
             x_pts = [1, 2, 3, 4, 5, 6]
-            y_pts = [1.0, 3.2, 1.0, 3.4, 1.0, 2.2]
+            y_pts = [0.8, 3.5, 0.8, 3.5, 0.8, 3.5]
 
             fig_jornada = go.Figure()
 
@@ -933,12 +932,12 @@ else:
                 x=x_pts,
                 y=y_pts,
                 mode='lines',
-                line=dict(color='#A0AEC0', width=4, dash='dash'),
+                line=dict(color='#A0AEC0', width=3, dash='dash'),
                 hoverinfo='skip',
                 showlegend=False
             ))
 
-            # Criação dos pontos com posições de texto seguras sem update_traces
+            # Criação dos pontos com textposition perfeitamente isolado
             for idx, row in enumerate(df_tracking.iterrows()):
                 status = row[1]['status_tracking']
                 qtd = row[1]['quantidade']
@@ -946,8 +945,13 @@ else:
                 cor = mapa_cores_jornada.get(status, '#3182CE')
                 qtd_str = f"{qtd:,}".replace(",", ".")
 
-                pos = "top center" if idx % 2 == 0 else "bottom center"
-                texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>"
+                # Pontos altos colocam o texto ACIMA do nó; Pontos baixos colocam o texto ABAIXO do nó
+                if y_pts[idx] == 3.5:
+                    pos = "top center"
+                    texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>"
+                else:
+                    pos = "bottom center"
+                    texto_no = f"<span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span><br><b>{status}</b>"
 
                 fig_jornada.add_trace(go.Scatter(
                     x=[x_pts[idx]],
@@ -956,7 +960,7 @@ else:
                     text=[texto_no],
                     textposition=pos,
                     textfont=dict(size=12),
-                    marker=dict(size=26, color=cor, line=dict(color='white', width=3)),
+                    marker=dict(size=24, color=cor, line=dict(color='white', width=3)),
                     showlegend=False,
                     hoverinfo='text'
                 ))
@@ -964,10 +968,10 @@ else:
             fig_jornada.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=40, r=40, t=70, b=70),
-                height=450,
+                margin=dict(l=40, r=40, t=80, b=80),
+                height=480,
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 6.6]),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.2, 4.2])
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.2, 4.5])
             )
 
             st.plotly_chart(fig_jornada, use_container_width=True)
