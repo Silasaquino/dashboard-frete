@@ -899,7 +899,7 @@ else:
 
             ordem_jornada = [
                 'EM ABERTO',
-                'POSTADO',
+                'POSTADO/TRANSPORTADOR',
                 'ENTREGUE AO SELLER',
                 'FINALIZADO',
                 'REVERSAS EXPIRADAS',
@@ -915,7 +915,7 @@ else:
 
             mapa_cores_jornada = {
                 'EM ABERTO': '#DD6B20',            # Laranja
-                'POSTADO': '#3182CE',             # Azul padrão
+                'POSTADO/TRANSPORTADOR': '#3182CE',             # Azul padrão
                 'ENTREGUE AO SELLER': '#38A169',  # Verde
                 'FINALIZADO': '#319795',          # Azul/Verde água
                 'REVERSAS EXPIRADAS': '#E53E3E',  # Vermelho
