@@ -173,7 +173,7 @@ else:
 
     @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_reversa_consolidados():
-        """Carrega e guarda as 660k+ linhas na memória por 30 minutos para resposta instantânea nos filtros."""
+        """Carrega e otimiza a base consolidada sem estourar memória RAM."""
         lista_dfs = []
         for item in PLANILHAS_BASE_CONFIG:
             sheet_id = item["id"]
@@ -198,12 +198,6 @@ else:
 
         if lista_dfs:
             df_final = pd.concat(lista_dfs, ignore_index=True)
-            
-            # Otimização extrema de memória RAM
-            for col in ['tipo_processo', 'seller_name', 'tracking', 'grupo_aberto_seller', 'motivo_troca']:
-                if col in df_final.columns:
-                    df_final[col] = df_final[col].astype('category')
-
             return df_final
         else:
             return pd.DataFrame()
@@ -218,7 +212,16 @@ else:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    with st.spinner("⚡ A otimizar e carregar base consolidada na memória..."):
+    @st.cache_data(ttl=1800, show_spinner=False)
+    def extrair_lista_sellers(df_base):
+        """Gera uma lista limpa e ordenada de Sellers com cache ultrarrápido."""
+        if 'seller_name' in df_base.columns:
+            sellers = df_base['seller_name'].dropna().astype(str).str.strip().unique()
+            sellers_limpos = [s for s in sellers if s and s.lower() != 'nan']
+            return ["Todos"] + sorted(sellers_limpos)
+        return ["Todos"]
+
+    with st.spinner("⚡ A carregar e otimizar base consolidada na memória..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
@@ -250,16 +253,13 @@ else:
         with col_seller:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
             if empresa_usuario.upper() == "DAFITI":
-                if 'seller_name' in df_raw_reversa.columns:
-                    lista_sellers = ["Todos"] + sorted([str(s) for s in df_raw_reversa['seller_name'].dropna().unique()])
-                    seller_selecionado = st.selectbox(
-                        "Selecione o Seller",
-                        lista_sellers,
-                        index=0,
-                        label_visibility="collapsed"
-                    )
-                else:
-                    seller_selecionado = "Todos"
+                lista_sellers = extrair_lista_sellers(df_raw_reversa)
+                seller_selecionado = st.selectbox(
+                    "Selecione o Seller",
+                    lista_sellers,
+                    index=0,
+                    label_visibility="collapsed"
+                )
             else:
                 st.markdown(f"<div style='background-color:#1E293B; padding:8px 12px; border-radius:6px; font-weight:700; color:#60A5FA; font-size:14px;'>🏢 {empresa_usuario}</div>", unsafe_allow_html=True)
                 seller_selecionado = empresa_usuario
@@ -398,9 +398,9 @@ else:
                 </style>
             """, unsafe_allow_html=True)
 
-        # FILTRAGEM RÁPIDA EM MEMÓRIA
-        df_filtrado_reversa = df_raw_reversa.copy()
-        df_filtrado_resumo = df_raw_resumo.copy()
+        # FILTRAGEM RÁPIDA E EFICIENTE
+        df_filtrado_reversa = df_raw_reversa
+        df_filtrado_resumo = df_raw_resumo
 
         # 1. Filtro por Modalidade
         if modal_selecionado != "GERAL":
@@ -426,9 +426,13 @@ else:
         if empresa_usuario.upper() == "DAFITI":
             if seller_selecionado != "Todos":
                 if 'seller_name' in df_filtrado_reversa.columns:
-                    df_filtrado_reversa = df_filtrado_reversa[df_filtrado_reversa['seller_name'] == seller_selecionado]
+                    df_filtrado_reversa = df_filtrado_reversa[
+                        df_filtrado_reversa['seller_name'].astype(str) == str(seller_selecionado)
+                    ]
                 if 'nome_seller' in df_filtrado_resumo.columns:
-                    df_filtrado_resumo = df_filtrado_resumo[df_filtrado_resumo['nome_seller'] == seller_selecionado]
+                    df_filtrado_resumo = df_filtrado_resumo[
+                        df_filtrado_resumo['nome_seller'].astype(str) == str(seller_selecionado)
+                    ]
         else:
             if 'seller_name' in df_filtrado_reversa.columns:
                 df_filtrado_reversa = df_filtrado_reversa[
