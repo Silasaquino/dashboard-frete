@@ -31,7 +31,7 @@ URL_CSV_GOOGLE_SHEETS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/expo
 URL_WEBAPP_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyvMmlYokWB2PpkxkewxpNAdGCKQmQ_S13ybz0qmqaCvgS77_HVhBtk-ftXukSCcYGX/exec"
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def carregar_credenciais_google():
     try:
         requisicao = urllib.request.Request(
@@ -159,7 +159,7 @@ else:
     st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
 
     # ==========================================
-    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS
+    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS COM CACHE DE ALTA PERFORMANCE
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},
@@ -171,7 +171,9 @@ else:
 
     SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
+    @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_reversa_consolidados():
+        """Carrega e guarda as 660k+ linhas na memória por 30 minutos para resposta instantânea nos filtros."""
         lista_dfs = []
         for item in PLANILHAS_BASE_CONFIG:
             sheet_id = item["id"]
@@ -180,14 +182,14 @@ else:
             
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-                df_temp = pd.read_csv(url_csv)
+                df_temp = pd.read_csv(url_csv, low_memory=False)
             except Exception:
                 pass
 
             if df_temp.empty or len(df_temp.columns) <= 1:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
-                    df_temp = pd.read_csv(url_gviz)
+                    df_temp = pd.read_csv(url_gviz, low_memory=False)
                 except Exception as e:
                     print(f"⚠️ Erro ao carregar Sheet ID {sheet_id}: {e}")
 
@@ -195,21 +197,28 @@ else:
                 lista_dfs.append(df_temp)
 
         if lista_dfs:
-            return pd.concat(lista_dfs, ignore_index=True)
+            df_final = pd.concat(lista_dfs, ignore_index=True)
+            
+            # Otimização extrema de memória RAM
+            for col in ['tipo_processo', 'seller_name', 'tracking', 'grupo_aberto_seller', 'motivo_troca']:
+                if col in df_final.columns:
+                    df_final[col] = df_final[col].astype('category')
+
+            return df_final
         else:
             return pd.DataFrame()
 
-    @st.cache_data(ttl=120)
+    @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_resumo():
         url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
         try:
-            df_resumo = pd.read_csv(url_csv_resumo)
+            df_resumo = pd.read_csv(url_csv_resumo, low_memory=False)
             return df_resumo
         except Exception as e:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    with st.spinner("⏳ A carregar e consolidar dados de todas as planilhas..."):
+    with st.spinner("⚡ A otimizar e carregar base consolidada na memória..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
@@ -225,7 +234,7 @@ else:
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        # PAINEL DE CONTROLE SUPERIOR (MODAL ANALISADO + SELEÇÃO DE SELLER + TEMA)
+        # PAINEL DE CONTROLE SUPERIOR
         col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
 
         with col_modal:
@@ -242,7 +251,7 @@ else:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
             if empresa_usuario.upper() == "DAFITI":
                 if 'seller_name' in df_raw_reversa.columns:
-                    lista_sellers = ["Todos"] + sorted(list(df_raw_reversa['seller_name'].dropna().unique()))
+                    lista_sellers = ["Todos"] + sorted([str(s) for s in df_raw_reversa['seller_name'].dropna().unique()])
                     seller_selecionado = st.selectbox(
                         "Selecione o Seller",
                         lista_sellers,
@@ -264,7 +273,7 @@ else:
                 label_visibility="collapsed"
             )
 
-        # INJEÇÃO CSS DE ALTO CONTRASTE E REMOÇÃO DE ESPAÇOS
+        # ESTILIZAÇÃO CSS
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
@@ -389,7 +398,7 @@ else:
                 </style>
             """, unsafe_allow_html=True)
 
-        # FILTRAGEM DOS DATAFRAMES COM BASE NO MODAL E SELLER SELECIONADOS
+        # FILTRAGEM RÁPIDA EM MEMÓRIA
         df_filtrado_reversa = df_raw_reversa.copy()
         df_filtrado_resumo = df_raw_resumo.copy()
 
@@ -413,7 +422,7 @@ else:
                     df_filtrado_resumo['delivery_type'].astype(str).str.lower().isin(valores_aceitos)
                 ]
 
-        # 2. Filtro por Seller (Aplicado a partir da barra de topo)
+        # 2. Filtro por Seller
         if empresa_usuario.upper() == "DAFITI":
             if seller_selecionado != "Todos":
                 if 'seller_name' in df_filtrado_reversa.columns:
@@ -430,7 +439,7 @@ else:
                     df_filtrado_resumo['nome_seller'].astype(str).str.lower() == empresa_usuario.lower()
                 ]
 
-        # CÁLCULO DA ÚLTIMA ATUALIZAÇÃO
+        # ÚLTIMA ATUALIZAÇÃO
         data_hora_formatada = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
             data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
