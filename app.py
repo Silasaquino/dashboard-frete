@@ -169,7 +169,7 @@ else:
     st.sidebar.write("---")
 
     # ==========================================
-    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS DA BASE (5 SHEETS)
+    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS SEM TRAVAMENTO
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},          # Parte 1 (Principal)
@@ -181,21 +181,23 @@ else:
 
     SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
-    @st.cache_data(ttl=300)
     def carregar_dados_reversa_consolidados():
-        """Lê os 5 links das abas BASE do Google Sheets por export e por gviz (dupla checagem)."""
+        """Lê em tempo real todas as 5 planilhas e empilha os dados sem usar cache travado."""
         lista_dfs = []
         for item in PLANILHAS_BASE_CONFIG:
             sheet_id = item["id"]
             gid = item["gid"]
             df_temp = pd.DataFrame()
             
-            # Tentativa 1: Exportação CSV direta
-            url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+            # Tentativa 1: Exportação CSV direta via GID
             try:
+                url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
                 df_temp = pd.read_csv(url_csv)
             except Exception:
-                # Tentativa 2: Consulta via gviz por nome da aba 'BASE'
+                pass
+
+            # Tentativa 2: Nome direto da aba 'BASE' via Google Viz API
+            if df_temp.empty or len(df_temp.columns) <= 1:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
                     df_temp = pd.read_csv(url_gviz)
@@ -210,9 +212,9 @@ else:
         else:
             return pd.DataFrame()
 
-    @st.cache_data(ttl=300)
+    @st.cache_data(ttl=120)
     def carregar_dados_resumo():
-        """Lê a aba RESUMO REVERSA do link único principal."""
+        """Lê a aba RESUMO REVERSA do link principal."""
         url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
         try:
             df_resumo = pd.read_csv(url_csv_resumo)
@@ -221,12 +223,12 @@ else:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    with st.spinner("⏳ A carregar e consolidar dados da Operação Reversa..."):
+    with st.spinner("⏳ A carregar e consolidar dados de todas as 5 planilhas..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
     # ==========================================
-    # ABAS SUPERIORES (SOMENTE OS MÓDULOS REAIS)
+    # ABAS SUPERIORES DE NAVEGAÇÃO
     # ==========================================
     aba_reversa, aba_vendas = st.tabs([
         "🔄 Operação Reversa", 
@@ -237,7 +239,7 @@ else:
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        # PAINEL CONTROLE SUPERIOR (MODAL ANALISADO + TEMA)
+        # PAINEL DE CONTROLE SUPERIOR
         col_modal, col_vazia, col_tema = st.columns([2.5, 3, 1.5])
 
         with col_modal:
@@ -259,57 +261,41 @@ else:
                 label_visibility="collapsed"
             )
 
-        # INJEÇÃO CSS GLOBAL DE ALTO CONSTRASTE (CORRIGE TEXTOS E BOTÕES APAGADOS)
+        # INJEÇÃO CSS DE ALTO CONTRASTE
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
-                    /* Fundo Global e Cores do App */
                     .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
+                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #94A3B8 !important; }
+                    .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
+                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span { color: #FFFFFF !important; font-weight: 700 !important; }
                     
-                    /* Texto das Abas Superiores */
-                    .stTabs [data-baseweb="tab"] {
-                        font-size: 18px !important;
-                        font-weight: 800 !important;
-                        color: #94A3B8 !important;
-                    }
-                    .stTabs [aria-selected="true"] {
-                        color: #60A5FA !important;
-                        border-bottom-color: #60A5FA !important;
-                    }
-
-                    /* Rádios e Labels de Filtros */
-                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span {
-                        color: #FFFFFF !important;
-                        font-weight: 700 !important;
-                    }
-                    
-                    /* Card de Titulo Subtitulo */
-                    .subtitulo-destaque {
+                    /* Faixa Unificada de Título + Atualização */
+                    .header-container-unificado {
                         background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
                         border-left: 6px solid #60A5FA !important;
-                        color: #FFFFFF !important;
-                        padding: 12px 20px;
-                        border-radius: 6px;
-                        font-size: 20px;
-                        font-weight: bold;
-                        text-align: center !important;
-                        margin-bottom: 15px;
+                        padding: 14px 24px;
+                        border-radius: 8px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 20px;
                     }
+                    .header-titulo { font-size: 20px; font-weight: 800; color: #FFFFFF !important; }
+                    .header-atualizacao { font-size: 14px; font-weight: 700; color: #94A3B8 !important; }
 
-                    /* Metric Cards / KPIs */
                     .metric-card {
                         background-color: #1E293B !important;
                         border: 1px solid #334155 !important;
                         border-radius: 10px;
-                        padding: 16px 20px;
+                        padding: 18px 20px;
                         text-align: center;
                     }
                     .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 24px; font-weight: 900; color: #FFFFFF !important; }
+                    .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
 
-                    /* Botão de Download CSV Customizado e Legível */
                     div[data-testid="stDownloadButton"] button {
                         background-color: #EF4444 !important;
                         color: #FFFFFF !important;
@@ -321,14 +307,7 @@ else:
                         width: 100% !important;
                         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important;
                     }
-                    div[data-testid="stDownloadButton"] button p {
-                        color: #FFFFFF !important;
-                        font-weight: 900 !important;
-                    }
-                    div[data-testid="stDownloadButton"] button:hover {
-                        background-color: #DC2626 !important;
-                        color: #FFFFFF !important;
-                    }
+                    div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
                 </style>
             """, unsafe_allow_html=True)
         else:
@@ -340,26 +319,30 @@ else:
                     .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
                     .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
                     div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span { color: #0F172A !important; font-weight: 700 !important; }
-                    .subtitulo-destaque {
+                    
+                    .header-container-unificado {
                         background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
                         border-left: 6px solid #2563EB !important;
-                        color: #0F172A !important;
-                        padding: 12px 20px;
-                        border-radius: 6px;
-                        font-size: 20px;
-                        font-weight: bold;
-                        text-align: center !important;
-                        margin-bottom: 15px;
+                        padding: 14px 24px;
+                        border-radius: 8px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 20px;
                     }
+                    .header-titulo { font-size: 20px; font-weight: 800; color: #0F172A !important; }
+                    .header-atualizacao { font-size: 14px; font-weight: 700; color: #475569 !important; }
+
                     .metric-card {
                         background-color: #F8FAFC !important;
                         border: 1px solid #E2E8F0 !important;
                         border-radius: 10px;
-                        padding: 16px 20px;
+                        padding: 18px 20px;
                         text-align: center;
                     }
                     .metric-card-label { font-size: 13px; color: #475569 !important; font-weight: 700; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 24px; font-weight: 900; color: #0F172A !important; }
+                    .metric-card-value { font-size: 26px; font-weight: 900; color: #0F172A !important; }
+
                     div[data-testid="stDownloadButton"] button {
                         background-color: #2563EB !important;
                         color: #FFFFFF !important;
@@ -373,7 +356,7 @@ else:
                 </style>
             """, unsafe_allow_html=True)
 
-        # APLICAÇÃO DOS FILTROS
+        # FILTRAGEM DOS DATAFRAMES
         df_filtrado_reversa = df_raw_reversa.copy()
         df_filtrado_resumo = df_raw_resumo.copy()
 
@@ -417,7 +400,22 @@ else:
                     df_filtrado_resumo['nome_seller'].astype(str).str.lower() == empresa_usuario.lower()
                 ]
 
-        st.markdown("<div class='subtitulo-destaque'>📋 Visão Geral da Operação Reversa</div>", unsafe_allow_html=True)
+        # CÁLCULO DA ÚLTIMA ATUALIZAÇÃO
+        data_hora_formatada = "N/D"
+        if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
+            data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
+            data_hora_formatada = data_max.strftime('%d/%m/%Y às %H:%M:%S')
+
+        # BARRA DE TÍTULO UNIFICADA COM A ÚLTIMA ATUALIZAÇÃO ALINHADA À DIREITA
+        st.markdown(
+            f"""
+            <div class='header-container-unificado'>
+                <div class='header-titulo'>📋 Visão Geral da Operação Reversa</div>
+                <div class='header-atualizacao'>🔄 Última Atualização: <b>{data_hora_formatada}</b></div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
 
@@ -455,25 +453,18 @@ else:
 
         st.write("")
 
-        # CÁLCULO DE KPIS
-        data_hora_formatada = "N/D"
-        if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
-            data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
-            data_hora_formatada = data_max.strftime('%d/%m/%Y às %H:%M:%S')
-
+        # KPIS (3 COLUNAS - FOCO TOTAL NAS MÉTRICAS PRINCIPAIS)
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
         qtd_remessas_unicas = len(df_filtrado_reversa.drop_duplicates(subset=colunas_existentes)) if colunas_existentes else len(df_filtrado_reversa)
 
-        col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
 
         with col_kpi1:
             st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Total Linhas Agrupadas</div><div class='metric-card-value'>{len(df_filtrado_reversa):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
         with col_kpi2:
             st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Qtd. Remessas Únicas</div><div class='metric-card-value'>{qtd_remessas_unicas:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
         with col_kpi3:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Última Atualização</div><div class='metric-card-value'>{data_hora_formatada}</div></div>", unsafe_allow_html=True)
-        with col_kpi4:
             st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
 
         st.write("")
@@ -739,7 +730,7 @@ else:
         st.write("")
         st.write("---")
 
-        # GRÁFICO 6: JORNADA DO TRACKING (SINUSOIDAL)
+        # GRÁFICO 6: JORNADA DO TRACKING
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
             df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_existentes) if colunas_existentes else df_filtrado_reversa.copy()
@@ -799,7 +790,7 @@ else:
 
         st.write("---")
 
-        # ÁREA DE DOWNLOAD DO CSV (TOTALMENTE LEGÍVEL)
+        # ÁREA DE DOWNLOAD DO CSV
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv = converter_df_para_csv(df_filtrado_reversa)
@@ -816,5 +807,5 @@ else:
     # ABA: VENDAS
     # ==========================================
     with aba_vendas:
-        st.markdown("<div class='subtitulo-destaque'>💰 Visão Geral de Vendas</div>", unsafe_allow_html=True)
+        st.markdown("<div class='header-container-unificado'><div class='header-titulo'>💰 Visão Geral de Vendas</div></div>", unsafe_allow_html=True)
         st.info("ℹ️ Módulo de Vendas pronto para conexão de dados e relatórios comerciais.")
