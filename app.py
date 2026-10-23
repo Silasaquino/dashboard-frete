@@ -152,12 +152,11 @@ if not st.session_state["autenticado"]:
 else:
     empresa_usuario = st.session_state.get("empresa_logada", "").strip()
 
-    # --- BARRA LATERAL (SIDEBAR) ---
+    # --- BARRA LATERAL (SIDEBAR LIMPA) ---
     st.sidebar.title("Perfil")
     st.sidebar.write(f"👤 **Utilizador:** {st.session_state.get('usuario_logado', '')}")
     st.sidebar.write(f"🏢 **Empresa:** {empresa_usuario}")
     st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
-    st.sidebar.write("---")
 
     # ==========================================
     # CARREGAMENTO CONSOLIDADO MULTI-SHEETS
@@ -226,7 +225,8 @@ else:
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        col_modal, col_vazia, col_tema = st.columns([2.5, 3, 1.5])
+        # PAINEL DE CONTROLE SUPERIOR (MODAL ANALISADO + SELEÇÃO DE SELLER + TEMA)
+        col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
 
         with col_modal:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO</span>", unsafe_allow_html=True)
@@ -238,6 +238,23 @@ else:
                 label_visibility="collapsed"
             )
 
+        with col_seller:
+            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
+            if empresa_usuario.upper() == "DAFITI":
+                if 'seller_name' in df_raw_reversa.columns:
+                    lista_sellers = ["Todos"] + sorted(list(df_raw_reversa['seller_name'].dropna().unique()))
+                    seller_selecionado = st.selectbox(
+                        "Selecione o Seller",
+                        lista_sellers,
+                        index=0,
+                        label_visibility="collapsed"
+                    )
+                else:
+                    seller_selecionado = "Todos"
+            else:
+                st.markdown(f"<div style='background-color:#1E293B; padding:8px 12px; border-radius:6px; font-weight:700; color:#60A5FA; font-size:14px;'>🏢 {empresa_usuario}</div>", unsafe_allow_html=True)
+                seller_selecionado = empresa_usuario
+
         with col_tema:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
             tema_selecionado = st.selectbox(
@@ -247,37 +264,24 @@ else:
                 label_visibility="collapsed"
             )
 
-        # CSS DE ALTO CONTRASTE + REMOÇÃO DA FAIXA BRANCA DO NAVEGADOR
+        # INJEÇÃO CSS DE ALTO CONTRASTE E REMOÇÃO DE ESPAÇOS
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
-                    /* Oculta o topo/header padrão do Streamlit (Remove a faixa branca) */
-                    header[data-testid="stHeader"] {
-                        background-color: #0B0F19 !important;
-                    }
-                    
-                    /* Fundo Global */
+                    header[data-testid="stHeader"] { background-color: #0B0F19 !important; }
                     .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
 
-                    /* Sidebar Escura e Textos Visíveis */
                     [data-testid="stSidebar"] {
                         background-color: #111827 !important;
                         border-right: 1px solid #1F2937 !important;
                     }
-                    [data-testid="stSidebar"] *, 
-                    [data-testid="stSidebar"] p, 
-                    [data-testid="stSidebar"] span, 
-                    [data-testid="stSidebar"] label,
-                    [data-testid="stSidebar"] h1,
-                    [data-testid="stSidebar"] h2,
-                    [data-testid="stSidebar"] h3 {
+                    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
                         color: #F3F4F6 !important;
                         font-weight: 700 !important;
                     }
 
-                    /* Botão de Logout Estilizado na Sidebar */
                     [data-testid="stSidebar"] button {
                         background-color: #374151 !important;
                         color: #FFFFFF !important;
@@ -285,29 +289,16 @@ else:
                         font-weight: 800 !important;
                         border-radius: 6px !important;
                     }
-                    [data-testid="stSidebar"] button:hover {
-                        background-color: #EF4444 !important;
-                        border-color: #EF4444 !important;
-                    }
+                    [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
 
-                    /* Estilização das Abas Superiores (Alto Contraste) */
-                    .stTabs [data-baseweb="tab"] {
-                        font-size: 18px !important;
-                        font-weight: 800 !important;
-                        color: #D1D5DB !important;
-                    }
-                    .stTabs [aria-selected="true"] {
-                        color: #60A5FA !important;
-                        border-bottom-color: #60A5FA !important;
-                    }
+                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #D1D5DB !important; }
+                    .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
 
-                    /* Rádios e Parágrafos da Área Principal */
                     div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
                         color: #FFFFFF !important;
                         font-weight: 700 !important;
                     }
                     
-                    /* Faixa Unificada de Título */
                     .header-container-unificado {
                         background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
                         border-left: 6px solid #60A5FA !important;
@@ -331,7 +322,6 @@ else:
                     .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
                     .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
 
-                    /* Botão de Download CSV */
                     div[data-testid="stDownloadButton"] button {
                         background-color: #EF4444 !important;
                         color: #FFFFFF !important;
@@ -350,9 +340,7 @@ else:
             cor_grafico = "#2563EB"
             st.markdown("""
                 <style>
-                    header[data-testid="stHeader"] {
-                        background-color: #FFFFFF !important;
-                    }
+                    header[data-testid="stHeader"] { background-color: #FFFFFF !important; }
                     .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
                     
                     [data-testid="stSidebar"] {
@@ -401,10 +389,11 @@ else:
                 </style>
             """, unsafe_allow_html=True)
 
-        # FILTRAGEM DOS DATAFRAMES
+        # FILTRAGEM DOS DATAFRAMES COM BASE NO MODAL E SELLER SELECIONADOS
         df_filtrado_reversa = df_raw_reversa.copy()
         df_filtrado_resumo = df_raw_resumo.copy()
 
+        # 1. Filtro por Modalidade
         if modal_selecionado != "GERAL":
             mapeamento_modalidades = {
                 "Dafiti Envios": ["dafiti envios", "dafiti_envios"],
@@ -424,18 +413,14 @@ else:
                     df_filtrado_resumo['delivery_type'].astype(str).str.lower().isin(valores_aceitos)
                 ]
 
-        # FILTRO DE SELLER NA BARRA LATERAL
+        # 2. Filtro por Seller (Aplicado a partir da barra de topo)
         if empresa_usuario.upper() == "DAFITI":
-            if 'seller_name' in df_filtrado_reversa.columns:
-                lista_sellers = ["Todos"] + sorted(list(df_filtrado_reversa['seller_name'].dropna().unique()))
-                seller_selecionado = st.sidebar.selectbox("🎯 Selecione o Seller:", lista_sellers)
-
-                if seller_selecionado != "Todos":
+            if seller_selecionado != "Todos":
+                if 'seller_name' in df_filtrado_reversa.columns:
                     df_filtrado_reversa = df_filtrado_reversa[df_filtrado_reversa['seller_name'] == seller_selecionado]
-                    if 'nome_seller' in df_filtrado_resumo.columns:
-                        df_filtrado_resumo = df_filtrado_resumo[df_filtrado_resumo['nome_seller'] == seller_selecionado]
+                if 'nome_seller' in df_filtrado_resumo.columns:
+                    df_filtrado_resumo = df_filtrado_resumo[df_filtrado_resumo['nome_seller'] == seller_selecionado]
         else:
-            st.sidebar.info(f"Filtro fixo ativo para a empresa: **{empresa_usuario}**")
             if 'seller_name' in df_filtrado_reversa.columns:
                 df_filtrado_reversa = df_filtrado_reversa[
                     df_filtrado_reversa['seller_name'].astype(str).str.lower() == empresa_usuario.lower()
