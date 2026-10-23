@@ -185,22 +185,49 @@ else:
     
     st.sidebar.write("---")
 
-    # --- CARREGAMENTO DE DADOS VIA GOOGLE SHEETS ---
-    SHEET_ID_REVERSA = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
+    # ==========================================
+    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS DA BASE (5 SHEETS)
+    # ==========================================
+    FONTES_BASE_REVERSA = [
+        {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},          # Principal (BASE)
+        {"id": "10zd0gTWei38fpjBZ4xNuIe0gdI8FGbscX3bc6uYgewE", "gid": "0"},          # Parte 1
+        {"id": "1FBS9BSal8DBtyVSOhGKBcNIa8EmktSunsuCCC9AuM34", "gid": "0"},          # Parte 2
+        {"id": "17f48qNZ1MVvgOwI467OypCrgR-iQl3TqZ7sosLp3s7Y", "gid": "638743010"},  # Parte 3
+        {"id": "1AyYe3M3kHCnlZYjD-GSR9oHr_6rGqsL8KMBUnnrvcx4", "gid": "0"}           # Parte 4
+    ]
+
+    # PLANILHA ÚNICA PARA O RESUMO REVERSA
+    SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
     @st.cache_data(ttl=3600)
-    def carregar_dados_reversa():
-        url_csv_base = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet=BASE"
-        try:
-            df_resultado = pd.read_csv(url_csv_base)
-            return df_resultado
-        except Exception as e:
-            st.error(f"Erro ao carregar dados da folha 'BASE': {e}")
+    def carregar_dados_reversa_consolidados():
+        """Lê os 5 links das abas BASE do Google Sheets e junta num único DataFrame."""
+        lista_dfs = []
+        for fonte in FONTES_BASE_REVERSA:
+            url_csv = f"https://docs.google.com/spreadsheets/d/{fonte['id']}/export?format=csv&gid={fonte['gid']}"
+            try:
+                req = urllib.request.Request(
+                    url_csv,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                )
+                with urllib.request.urlopen(req) as resposta:
+                    conteudo_csv = resposta.read().decode("utf-8")
+                    
+                df_temp = pd.read_csv(io.StringIO(conteudo_csv))
+                if not df_temp.empty and len(df_temp.columns) > 1:
+                    lista_dfs.append(df_temp)
+            except Exception:
+                pass
+
+        if lista_dfs:
+            return pd.concat(lista_dfs, ignore_index=True)
+        else:
             return pd.DataFrame()
 
     @st.cache_data(ttl=3600)
     def carregar_dados_resumo():
-        url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_REVERSA}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
+        """Lê a aba RESUMO REVERSA do link único principal."""
+        url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
         try:
             df_resumo = pd.read_csv(url_csv_resumo)
             return df_resumo
@@ -208,8 +235,8 @@ else:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    with st.spinner("⏳ A carregar dados da Operação Reversa..."):
-        df_raw_reversa = carregar_dados_reversa()
+    with st.spinner("⏳ A carregar e consolidar dados da Operação Reversa..."):
+        df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
     df_filtrado_reversa = df_raw_reversa.copy()
@@ -221,28 +248,35 @@ else:
     st.sidebar.subheader("🎯 Filtros do Dashboard")
     st.sidebar.write("")
 
-    # 1º FILTRO: MODALIDADE DE ENTREGA
+    # 1º FILTRO: MODALIDADE DE ENTREGA (MULTISELECT + NOVAS MODALIDADES)
     st.sidebar.markdown(
-        "<span style='font-size: 18px; font-weight: bold;'>🚚 Selecione a Modalidade:</span>",
+        "<span style='font-size: 18px; font-weight: bold;'>🚚 Selecione as Modalidades:</span>",
         unsafe_allow_html=True
     )
 
-    opcoes_modalidade = ["Todos", "Dafiti Envios", "Milkrun", "Dropshipping"]
+    opcoes_modalidade = ["Dafiti Envios", "Milkrun", "Dropshipping", "Fulfillment", "Retail"]
 
-    modalidade_selecionada = st.sidebar.selectbox(
+    modalidades_selecionadas = st.sidebar.multiselect(
         "Modalidade de Entrega",
         opcoes_modalidade,
+        default=opcoes_modalidade,  # Inicia com todas selecionadas por padrão
         label_visibility="collapsed"
     )
 
-    if modalidade_selecionada != "Todos":
+    if modalidades_selecionadas:
         mapeamento_modalidades = {
             "Dafiti Envios": ["dafiti envios", "dafiti_envios"],
             "Milkrun": ["milkrun"],
-            "Dropshipping": ["dropshipping"]
+            "Dropshipping": ["dropshipping"],
+            "Fulfillment": ["fulfillment"],
+            "Retail": ["retail"]
         }
-        valores_aceitos = mapeamento_modalidades.get(modalidade_selecionada, [modalidade_selecionada.lower()])
         
+        # Consolida todos os termos válidos das opções selecionadas
+        valores_aceitos = []
+        for mod in modalidades_selecionadas:
+            valores_aceitos.extend(mapeamento_modalidades.get(mod, [mod.lower()]))
+
         if 'tipo_processo' in df_filtrado_reversa.columns:
             df_filtrado_reversa = df_filtrado_reversa[
                 df_filtrado_reversa['tipo_processo'].astype(str).str.lower().isin(valores_aceitos)
@@ -251,6 +285,10 @@ else:
             df_filtrado_resumo = df_filtrado_resumo[
                 df_filtrado_resumo['delivery_type'].astype(str).str.lower().isin(valores_aceitos)
             ]
+    else:
+        # Se nenhuma modalidade estiver selecionada, esvazia as tabelas
+        df_filtrado_reversa = df_filtrado_reversa.iloc[0:0]
+        df_filtrado_resumo = df_filtrado_resumo.iloc[0:0]
 
     st.sidebar.write("")
 
@@ -535,12 +573,13 @@ else:
                 unsafe_allow_html=True
             )
 
+        str_modalidades = ", ".join(modalidades_selecionadas) if modalidades_selecionadas else "Nenhuma"
         with col_kpi4:
             st.markdown(
                 f"""
                 <div class='metric-card'>
-                    <div class='metric-card-label'>Modalidade Selecionada</div>
-                    <div class='metric-card-value'>{modalidade_selecionada}</div>
+                    <div class='metric-card-label'>Modalidade(s) Selecionada(s)</div>
+                    <div class='metric-card-value' style='font-size: 16px;'>{str_modalidades}</div>
                 </div>
                 """, 
                 unsafe_allow_html=True
@@ -987,7 +1026,7 @@ else:
         )
         st.markdown(
             f"<p style='text-align: center; color: gray;'>"
-            f"Filtro ativo: <b>{tipo_visao_data} ({mes_selecionado})</b> | Modalidade: <b>{modalidade_selecionada}</b>"
+            f"Filtro ativo: <b>{tipo_visao_data} ({mes_selecionado})</b> | Modalidade(s): <b>{str_modalidades}</b>"
             "</p>", 
             unsafe_allow_html=True
         )
