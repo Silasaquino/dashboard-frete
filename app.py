@@ -248,7 +248,7 @@ else:
     st.sidebar.subheader("🎯 Filtros do Dashboard")
     st.sidebar.write("")
 
-    # 1º FILTRO: MODALIDADE DE ENTREGA (MULTISELECT + NOVAS MODALIDADES)
+    # 1º FILTRO: MODALIDADE DE ENTREGA (COM CAIXAS DE SELEÇÃO / CHECKBOXES PARA FLEGAR)
     st.sidebar.markdown(
         "<span style='font-size: 18px; font-weight: bold;'>🚚 Selecione as Modalidades:</span>",
         unsafe_allow_html=True
@@ -256,12 +256,27 @@ else:
 
     opcoes_modalidade = ["Dafiti Envios", "Milkrun", "Dropshipping", "Fulfillment", "Retail"]
 
-    modalidades_selecionadas = st.sidebar.multiselect(
-        "Modalidade de Entrega",
-        opcoes_modalidade,
-        default=opcoes_modalidade,  # Inicia com todas selecionadas por padrão
-        label_visibility="collapsed"
-    )
+    with st.sidebar.expander("Flegar Modalidades", expanded=True):
+        col_todas_1, col_todas_2 = st.columns(2)
+        with col_todas_1:
+            marcar_todas = st.button("Marcar Todas", use_container_width=True)
+        with col_todas_2:
+            desmarcar_todas = st.button("Limpar", use_container_width=True)
+
+        if marcar_todas:
+            for opt in opcoes_modalidade:
+                st.session_state[f"chk_{opt}"] = True
+        elif desmarcar_todas:
+            for opt in opcoes_modalidade:
+                st.session_state[f"chk_{opt}"] = False
+
+        modalidades_selecionadas = []
+        for opt in opcoes_modalidade:
+            if f"chk_{opt}" not in st.session_state:
+                st.session_state[f"chk_{opt}"] = True
+                
+            if st.checkbox(opt, key=f"chk_{opt}"):
+                modalidades_selecionadas.append(opt)
 
     if modalidades_selecionadas:
         mapeamento_modalidades = {
@@ -272,7 +287,6 @@ else:
             "Retail": ["retail"]
         }
         
-        # Consolida todos os termos válidos das opções selecionadas
         valores_aceitos = []
         for mod in modalidades_selecionadas:
             valores_aceitos.extend(mapeamento_modalidades.get(mod, [mod.lower()]))
@@ -286,7 +300,6 @@ else:
                 df_filtrado_resumo['delivery_type'].astype(str).str.lower().isin(valores_aceitos)
             ]
     else:
-        # Se nenhuma modalidade estiver selecionada, esvazia as tabelas
         df_filtrado_reversa = df_filtrado_reversa.iloc[0:0]
         df_filtrado_resumo = df_filtrado_resumo.iloc[0:0]
 
@@ -579,7 +592,7 @@ else:
                 f"""
                 <div class='metric-card'>
                     <div class='metric-card-label'>Modalidade(s) Selecionada(s)</div>
-                    <div class='metric-card-value' style='font-size: 16px;'>{str_modalidades}</div>
+                    <div class='metric-card-value' style='font-size: 15px;'>{str_modalidades}</div>
                 </div>
                 """, 
                 unsafe_allow_html=True
