@@ -34,9 +34,9 @@ URL_CSV_GOOGLE_SHEETS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/expo
 URL_WEBAPP_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyvMmlYokWB2PpkxkewxpNAdGCKQmQ_S13ybz0qmqaCvgS77_HVhBtk-ftXukSCcYGX/exec"
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=300)
 def carregar_credenciais_google():
-    """Lê a folha do Google Sheets com cache de 10 minutos."""
+    """Lê a folha do Google Sheets com cache leve de 5 minutos."""
     try:
         requisicao = urllib.request.Request(
             URL_CSV_GOOGLE_SHEETS,
@@ -171,35 +171,46 @@ else:
     # ==========================================
     # CARREGAMENTO CONSOLIDADO MULTI-SHEETS DA BASE (5 SHEETS)
     # ==========================================
-    SHEETS_BASE_IDS = [
-        "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU",  # Parte 1 (Principal)
-        "10zd0gTWei38fpjBZ4xNuIe0gdI8FGbscX3bc6uYgewE",  # Parte 2
-        "1FBS9BSal8DBtyVSOhGKBcNIa8EmktSunsuCCC9AuM34",  # Parte 3
-        "17f48qNZ1MVvgOwI467OypCrgR-iQl3TqZ7sosLp3s7Y",  # Parte 4
-        "1AyYe3M3kHCnlZYjD-GSR9oHr_6rGqsL8KMBUnnrvcx4"   # Parte 5
+    PLANILHAS_BASE_CONFIG = [
+        {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},          # Parte 1 (Principal)
+        {"id": "10zd0gTWei38fpjBZ4xNuIe0gdI8FGbscX3bc6uYgewE", "gid": "0"},          # Parte 2
+        {"id": "1FBS9BSal8DBtyVSOhGKBcNIa8EmktSunsuCCC9AuM34", "gid": "0"},          # Parte 3
+        {"id": "17f48qNZ1MVvgOwI467OypCrgR-iQl3TqZ7sosLp3s7Y", "gid": "638743010"},  # Parte 4
+        {"id": "1AyYe3M3kHCnlZYjD-GSR9oHr_6rGqsL8KMBUnnrvcx4", "gid": "0"}           # Parte 5
     ]
 
     SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
-    @st.cache_data(ttl=3600)
+    @st.cache_data(ttl=300)
     def carregar_dados_reversa_consolidados():
-        """Lê a aba 'BASE' de cada um dos 5 links pelo nome da folha e junta num DataFrame."""
+        """Lê os 5 links das abas BASE do Google Sheets por export e por gviz (dupla checagem)."""
         lista_dfs = []
-        for sheet_id in SHEETS_BASE_IDS:
-            url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
+        for item in PLANILHAS_BASE_CONFIG:
+            sheet_id = item["id"]
+            gid = item["gid"]
+            df_temp = pd.DataFrame()
+            
+            # Tentativa 1: Exportação CSV direta
+            url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
             try:
                 df_temp = pd.read_csv(url_csv)
-                if not df_temp.empty and len(df_temp.columns) > 1:
-                    lista_dfs.append(df_temp)
-            except Exception as e:
-                print(f"⚠️ Erro ao carregar Sheet ID {sheet_id}: {e}")
+            except Exception:
+                # Tentativa 2: Consulta via gviz por nome da aba 'BASE'
+                try:
+                    url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
+                    df_temp = pd.read_csv(url_gviz)
+                except Exception as e:
+                    print(f"⚠️ Erro ao carregar Sheet ID {sheet_id}: {e}")
+
+            if not df_temp.empty and len(df_temp.columns) > 1:
+                lista_dfs.append(df_temp)
 
         if lista_dfs:
             return pd.concat(lista_dfs, ignore_index=True)
         else:
             return pd.DataFrame()
 
-    @st.cache_data(ttl=3600)
+    @st.cache_data(ttl=300)
     def carregar_dados_resumo():
         """Lê a aba RESUMO REVERSA do link único principal."""
         url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
@@ -222,54 +233,15 @@ else:
         "💰 Vendas"
     ])
 
-    # ESTILIZAÇÃO CUSTOMIZADA PARA LEGIBILIDADE PERFEITA NO MODO ESCURO E CLARO
-    st.markdown("""
-        <style>
-            /* Melhora a legibilidade das Abas Superiores no Tema Escuro */
-            .stTabs [data-baseweb="tab-list"] {
-                gap: 20px;
-                border-bottom: 2px solid #374151;
-            }
-            .stTabs [data-baseweb="tab"] {
-                font-size: 17px !important;
-                font-weight: 700 !important;
-                color: #D1D5DB !important;
-                padding-bottom: 10px;
-            }
-            .stTabs [aria-selected="true"] {
-                color: #60A5FA !important;
-                border-bottom-color: #60A5FA !important;
-            }
-            /* Painel do Modal Analisado */
-            .container-modal {
-                background-color: #1F2937;
-                border: 1px solid #374151;
-                border-radius: 12px;
-                padding: 16px 20px;
-                margin-top: 10px;
-                margin-bottom: 20px;
-            }
-            .label-modal {
-                font-size: 12px;
-                font-weight: 800;
-                color: #9CA3AF;
-                letter-spacing: 1px;
-                text-transform: uppercase;
-                margin-bottom: 6px;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
     # ==========================================
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
         # PAINEL CONTROLE SUPERIOR (MODAL ANALISADO + TEMA)
-        st.markdown("<div class='container-modal'>", unsafe_allow_html=True)
         col_modal, col_vazia, col_tema = st.columns([2.5, 3, 1.5])
 
         with col_modal:
-            st.markdown("<div class='label-modal'>MODAL ANALISADO</div>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO</span>", unsafe_allow_html=True)
             opcoes_modalidade = ["GERAL", "Dafiti Envios", "Milkrun", "Dropshipping", "Fulfillment", "Retail"]
             modal_selecionado = st.selectbox(
                 "Modal Analisado",
@@ -279,22 +251,41 @@ else:
             )
 
         with col_tema:
-            st.markdown("<div class='label-modal' style='text-align: right;'>TEMA DA TELA</div>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
             tema_selecionado = st.selectbox(
                 "Tema do Dashboard",
                 ["Escuro 🌙", "Claro ☀️"],
                 index=0,
                 label_visibility="collapsed"
             )
-        st.markdown("</div>", unsafe_allow_html=True)
 
-        # AJUSTE DE CORES CONFORME O TEMA SELECIONADO
+        # INJEÇÃO CSS GLOBAL DE ALTO CONSTRASTE (CORRIGE TEXTOS E BOTÕES APAGADOS)
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
-                    .stApp { background-color: #0F172A !important; color: #F8FAFC !important; }
+                    /* Fundo Global e Cores do App */
+                    .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
+                    
+                    /* Texto das Abas Superiores */
+                    .stTabs [data-baseweb="tab"] {
+                        font-size: 18px !important;
+                        font-weight: 800 !important;
+                        color: #94A3B8 !important;
+                    }
+                    .stTabs [aria-selected="true"] {
+                        color: #60A5FA !important;
+                        border-bottom-color: #60A5FA !important;
+                    }
+
+                    /* Rádios e Labels de Filtros */
+                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span {
+                        color: #FFFFFF !important;
+                        font-weight: 700 !important;
+                    }
+                    
+                    /* Card de Titulo Subtitulo */
                     .subtitulo-destaque {
                         background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
                         border-left: 6px solid #60A5FA !important;
@@ -306,6 +297,8 @@ else:
                         text-align: center !important;
                         margin-bottom: 15px;
                     }
+
+                    /* Metric Cards / KPIs */
                     .metric-card {
                         background-color: #1E293B !important;
                         border: 1px solid #334155 !important;
@@ -313,8 +306,29 @@ else:
                         padding: 16px 20px;
                         text-align: center;
                     }
-                    .metric-card-label { font-size: 13px; color: #94A3B8 !important; font-weight: 600; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 22px; font-weight: bold; color: #FFFFFF !important; }
+                    .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
+                    .metric-card-value { font-size: 24px; font-weight: 900; color: #FFFFFF !important; }
+
+                    /* Botão de Download CSV Customizado e Legível */
+                    div[data-testid="stDownloadButton"] button {
+                        background-color: #EF4444 !important;
+                        color: #FFFFFF !important;
+                        border: none !important;
+                        font-weight: 900 !important;
+                        font-size: 16px !important;
+                        border-radius: 8px !important;
+                        padding: 0.8rem 1.5rem !important;
+                        width: 100% !important;
+                        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important;
+                    }
+                    div[data-testid="stDownloadButton"] button p {
+                        color: #FFFFFF !important;
+                        font-weight: 900 !important;
+                    }
+                    div[data-testid="stDownloadButton"] button:hover {
+                        background-color: #DC2626 !important;
+                        color: #FFFFFF !important;
+                    }
                 </style>
             """, unsafe_allow_html=True)
         else:
@@ -322,11 +336,14 @@ else:
             cor_grafico = "#2563EB"
             st.markdown("""
                 <style>
-                    .stApp { background-color: #FFFFFF !important; color: #1E293B !important; }
+                    .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
+                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
+                    .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
+                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span { color: #0F172A !important; font-weight: 700 !important; }
                     .subtitulo-destaque {
                         background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
                         border-left: 6px solid #2563EB !important;
-                        color: #1E293B !important;
+                        color: #0F172A !important;
                         padding: 12px 20px;
                         border-radius: 6px;
                         font-size: 20px;
@@ -341,8 +358,18 @@ else:
                         padding: 16px 20px;
                         text-align: center;
                     }
-                    .metric-card-label { font-size: 13px; color: #64748B !important; font-weight: 600; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 22px; font-weight: bold; color: #0F172A !important; }
+                    .metric-card-label { font-size: 13px; color: #475569 !important; font-weight: 700; margin-bottom: 6px; }
+                    .metric-card-value { font-size: 24px; font-weight: 900; color: #0F172A !important; }
+                    div[data-testid="stDownloadButton"] button {
+                        background-color: #2563EB !important;
+                        color: #FFFFFF !important;
+                        font-weight: 900 !important;
+                        font-size: 16px !important;
+                        border-radius: 8px !important;
+                        padding: 0.8rem 1.5rem !important;
+                        width: 100% !important;
+                    }
+                    div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
                 </style>
             """, unsafe_allow_html=True)
 
@@ -772,7 +799,7 @@ else:
 
         st.write("---")
 
-        # ÁREA DE DOWNLOAD
+        # ÁREA DE DOWNLOAD DO CSV (TOTALMENTE LEGÍVEL)
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv = converter_df_para_csv(df_filtrado_reversa)
