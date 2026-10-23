@@ -15,16 +15,10 @@ warnings.filterwarnings("ignore")
 st.set_page_config(page_title="Dashboard Sellers - Redshift", layout="wide")
 
 # ==========================================
-# 1. CONFIGURAÇÃO E AUTENTICAÇÃO VIA GOOGLE SHEETS
+# 1. CONFIGURAÇÃO E AUTENTICAÇÃO PERSISTENTE (RESISTENTE AO F5)
 # ==========================================
 
 TEMPO_EXPIRED_MINUTOS = 10
-
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-
-if "ultima_atividade" not in st.session_state:
-    st.session_state["ultima_atividade"] = None
 
 SHEET_ID = "1WuROB09uYwPUeMaG7fS3CroqPFB9cEXtolcgRoA6erY"
 URL_CSV_GOOGLE_SHEETS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
@@ -86,6 +80,58 @@ def registrar_acesso_google_sheets(login, empresa):
         print(f"❌ Erro ao enviar log para o Google Sheets: {e}")
 
 
+def fazer_logout():
+    """Limpa sessão e remove os parâmetros da URL para logout seguro."""
+    st.session_state["autenticado"] = False
+    st.session_state["usuario_logado"] = None
+    st.session_state["empresa_logada"] = None
+    st.session_state["ultima_atividade"] = None
+    st.query_params.clear()
+
+
+def validar_e_restaurar_sessao():
+    """MANTÉM O LOGIN APÓS F5: Verifica a URL e valida o limite de 10 minutos."""
+    agora = datetime.now()
+    
+    # 1. Tenta restaurar da URL se deu F5
+    params = st.query_params
+    if "user" in params and "empresa" in params and "time" in params:
+        try:
+            time_stamp_str = params["time"]
+            ultima_atividade = datetime.fromtimestamp(float(time_stamp_str))
+            
+            # Se ainda estiver dentro dos 10 minutos
+            if agora - ultima_atividade <= timedelta(minutes=TEMPO_EXPIRED_MINUTOS):
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_logado"] = params["user"]
+                st.session_state["empresa_logada"] = params["empresa"]
+                st.session_state["ultima_atividade"] = agora
+                # Atualiza a hora da última atividade na URL
+                st.query_params["time"] = str(agora.timestamp())
+                return True
+            else:
+                fazer_logout()
+                st.warning("⚠️ A sua sessão expirou por inatividade (10 minutos). Por favor, faça login novamente.")
+                return False
+        except Exception:
+            fazer_logout()
+            return False
+
+    # 2. Se já estiver no session_state durante o uso contínuo
+    if st.session_state.get("autenticado", False):
+        ultima_atividade = st.session_state.get("ultima_atividade")
+        if ultima_atividade and (agora - ultima_atividade > timedelta(minutes=TEMPO_EXPIRED_MINUTOS)):
+            fazer_logout()
+            st.warning("⚠️ A sua sessão expirou por inatividade (10 minutos). Por favor, faça login novamente.")
+            return False
+        else:
+            st.session_state["ultima_atividade"] = agora
+            st.query_params["time"] = str(agora.timestamp())
+            return True
+
+    return False
+
+
 def verificar_login_google():
     usuario_input = st.session_state.get("campo_usuario", "").strip()
     senha_input = st.session_state.get("campo_senha", "").strip()
@@ -93,11 +139,17 @@ def verificar_login_google():
 
     if usuario_input in credenciais_validas and credenciais_validas[usuario_input]['senha'] == senha_input:
         empresa_logada = credenciais_validas[usuario_input]['empresa']
+        agora = datetime.now()
 
         st.session_state["autenticado"] = True
         st.session_state["usuario_logado"] = usuario_input
         st.session_state["empresa_logada"] = empresa_logada
-        st.session_state["ultima_atividade"] = datetime.now()
+        st.session_state["ultima_atividade"] = agora
+
+        # Grava os parâmetros na URL para resistir ao F5
+        st.query_params["user"] = usuario_input
+        st.query_params["empresa"] = empresa_logada
+        st.query_params["time"] = str(agora.timestamp())
 
         registrar_acesso_google_sheets(usuario_input, empresa_logada)
 
@@ -107,34 +159,19 @@ def verificar_login_google():
         st.error("❌ Utilizador ou palavra-passe incorretos!")
 
 
-def fazer_logout():
-    st.session_state["autenticado"] = False
-    st.session_state["ultima_atividade"] = None
-
-
-def validar_tempo_sessao():
-    if st.session_state["autenticado"] and st.session_state["ultima_atividade"] is not None:
-        tempo_decorrido = datetime.now() - st.session_state["ultima_atividade"]
-
-        if tempo_decorrido > timedelta(minutes=TEMPO_EXPIRED_MINUTOS):
-            fazer_logout()
-            st.warning("⚠️ A sua sessão expirou por inatividade (10 minutos). Por favor, faça login novamente.")
-        else:
-            st.session_state["ultima_atividade"] = datetime.now()
-
-
 @st.cache_data
 def converter_df_para_csv(df):
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
 
 
-validar_tempo_sessao()
+# Executa a validação de sessão
+esta_autenticado = validar_e_restaurar_sessao()
 
 
 # ==========================================
 # 2. TELA DE LOGIN
 # ==========================================
-if not st.session_state["autenticado"]:
+if not esta_autenticado:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso Restrito ao Dashboard</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Insira os seus dados cadastrados na folha de acessos.</p>", unsafe_allow_html=True)
     st.write("---")
@@ -225,7 +262,7 @@ else:
             return ["Todos"] + s_validos
         return ["Todos"]
 
-    with st.spinner("⚡ A carregar e otimizar base consolidada na memória..."):
+    with st.spinner("⚡ A otimizar e carregar base consolidada na memória..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
@@ -243,7 +280,6 @@ else:
     with aba_reversa:
         col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
 
-        # SELEÇÃO DO SELLER PRIMEIRO PARA FILTRAR OS MODAIS DISPONÍVEIS
         with col_seller:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
             if empresa_usuario.upper() == "DAFITI":
@@ -258,7 +294,6 @@ else:
                 st.markdown(f"<div style='background-color:#1E293B; padding:8px 12px; border-radius:6px; font-weight:700; color:#60A5FA; font-size:14px;'>🏢 {empresa_usuario}</div>", unsafe_allow_html=True)
                 seller_selecionado = empresa_usuario
 
-        # OBTENÇÃO DOS MODAIS EXISTENTES APENAS PARA O SELLER SELECIONADO
         df_seller_temp = df_raw_reversa
         if seller_selecionado != "Todos":
             df_seller_temp = df_raw_reversa[df_raw_reversa['seller_name'].str.strip().str.upper() == str(seller_selecionado).strip().upper()]
@@ -421,7 +456,6 @@ else:
                 </style>
             """, unsafe_allow_html=True)
 
-        # MÁSCARAS DE FILTRAGEM COM CORRESPONDÊNCIA INSENSÍVEL A MAIÚSCULAS/MINÚSCULAS
         mask_reversa = pd.Series(True, index=df_raw_reversa.index)
         mask_resumo = pd.Series(True, index=df_raw_resumo.index)
 
