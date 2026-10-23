@@ -105,7 +105,6 @@ def verificar_login_google():
         st.session_state["empresa_logada"] = empresa_logada
         st.session_state["ultima_atividade"] = datetime.now()
 
-        # Regista o acesso na planilha
         registrar_acesso_google_sheets(usuario_input, empresa_logada)
 
         st.session_state["campo_usuario"] = ""
@@ -216,38 +215,39 @@ else:
         df_raw_resumo = carregar_dados_resumo()
 
     # ==========================================
-    # NAVEGAÇÃO SUPERIOR EM ABAS (ESTILO DASHBOARD MODERNO)
+    # ABAS SUPERIORES (SOMENTE OS MÓDULOS REAIS)
     # ==========================================
-    aba_gerencial, aba_boletim, aba_reversa, aba_vendas = st.tabs([
-        "📊 Visão Gerencial", 
-        "🏪 Boletim Individual", 
-        "📈 Operação Reversa", 
+    aba_reversa, aba_vendas = st.tabs([
+        "🔄 Operação Reversa", 
         "💰 Vendas"
     ])
 
-    # ------------------------------------------
-    # ESTILIZAÇÃO DO PAINEL DE CONTROLES (MODAL ANALISADO + TEMA)
-    # ------------------------------------------
+    # ESTILIZAÇÃO CUSTOMIZADA PARA LEGIBILIDADE PERFEITA NO MODO ESCURO E CLARO
     st.markdown("""
         <style>
-            /* Customização das Abas Superiores */
+            /* Melhora a legibilidade das Abas Superiores no Tema Escuro */
             .stTabs [data-baseweb="tab-list"] {
-                gap: 24px;
-                border-bottom: 2px solid #2D3748;
+                gap: 20px;
+                border-bottom: 2px solid #374151;
             }
             .stTabs [data-baseweb="tab"] {
-                font-size: 16px;
-                font-weight: 600;
-                padding-bottom: 12px;
+                font-size: 17px !important;
+                font-weight: 700 !important;
+                color: #D1D5DB !important;
+                padding-bottom: 10px;
             }
-            /* Card Container do Filtro Modal Analisado */
+            .stTabs [aria-selected="true"] {
+                color: #60A5FA !important;
+                border-bottom-color: #60A5FA !important;
+            }
+            /* Painel do Modal Analisado */
             .container-modal {
-                background-color: #111827;
-                border: 1px solid #1F2937;
+                background-color: #1F2937;
+                border: 1px solid #374151;
                 border-radius: 12px;
-                padding: 18px 24px;
-                margin-top: 15px;
-                margin-bottom: 25px;
+                padding: 16px 20px;
+                margin-top: 10px;
+                margin-bottom: 20px;
             }
             .label-modal {
                 font-size: 12px;
@@ -261,16 +261,15 @@ else:
     """, unsafe_allow_html=True)
 
     # ==========================================
-    # CONTEÚDO DA ABA: OPERAÇÃO REVERSA
+    # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        # BANNER DE CONTROLE ESTILIZADO (MODAL ANALISADO + TEMA NO MESMO BLOCO)
+        # PAINEL CONTROLE SUPERIOR (MODAL ANALISADO + TEMA)
         st.markdown("<div class='container-modal'>", unsafe_allow_html=True)
         col_modal, col_vazia, col_tema = st.columns([2.5, 3, 1.5])
 
         with col_modal:
             st.markdown("<div class='label-modal'>MODAL ANALISADO</div>", unsafe_allow_html=True)
-            
             opcoes_modalidade = ["GERAL", "Dafiti Envios", "Milkrun", "Dropshipping", "Fulfillment", "Retail"]
             modal_selecionado = st.selectbox(
                 "Modal Analisado",
@@ -289,17 +288,17 @@ else:
             )
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # INJEÇÃO DINÂMICA DE CORES
+        # AJUSTE DE CORES CONFORME O TEMA SELECIONADO
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
-            cor_grafico = "#63B3ED"
+            cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
-                    .stApp { background-color: #0B0F17 !important; color: #E2E8F0 !important; }
+                    .stApp { background-color: #0F172A !important; color: #F8FAFC !important; }
                     .subtitulo-destaque {
-                        background: linear-gradient(90deg, #1F2937 0%, #111827 100%) !important;
-                        border-left: 6px solid #63B3ED !important;
-                        color: #F7FAFC !important;
+                        background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
+                        border-left: 6px solid #60A5FA !important;
+                        color: #FFFFFF !important;
                         padding: 12px 20px;
                         border-radius: 6px;
                         font-size: 20px;
@@ -308,26 +307,26 @@ else:
                         margin-bottom: 15px;
                     }
                     .metric-card {
-                        background-color: #111827 !important;
-                        border: 1px solid #1F2937 !important;
+                        background-color: #1E293B !important;
+                        border: 1px solid #334155 !important;
                         border-radius: 10px;
                         padding: 16px 20px;
                         text-align: center;
                     }
-                    .metric-card-label { font-size: 13px; color: #9CA3AF !important; font-weight: 600; margin-bottom: 6px; }
+                    .metric-card-label { font-size: 13px; color: #94A3B8 !important; font-weight: 600; margin-bottom: 6px; }
                     .metric-card-value { font-size: 22px; font-weight: bold; color: #FFFFFF !important; }
                 </style>
             """, unsafe_allow_html=True)
         else:
             template_plotly = "plotly_white"
-            cor_grafico = "#2B6CB0"
+            cor_grafico = "#2563EB"
             st.markdown("""
                 <style>
-                    .stApp { background-color: #FFFFFF !important; color: #1A202C !important; }
+                    .stApp { background-color: #FFFFFF !important; color: #1E293B !important; }
                     .subtitulo-destaque {
-                        background: linear-gradient(90deg, #f0f4f9 0%, #ffffff 100%) !important;
-                        border-left: 6px solid #2B6CB0 !important;
-                        color: #2D3748 !important;
+                        background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
+                        border-left: 6px solid #2563EB !important;
+                        color: #1E293B !important;
                         padding: 12px 20px;
                         border-radius: 6px;
                         font-size: 20px;
@@ -336,18 +335,18 @@ else:
                         margin-bottom: 15px;
                     }
                     .metric-card {
-                        background-color: #f8fafc !important;
-                        border: 1px solid #e2e8f0 !important;
+                        background-color: #F8FAFC !important;
+                        border: 1px solid #E2E8F0 !important;
                         border-radius: 10px;
                         padding: 16px 20px;
                         text-align: center;
                     }
-                    .metric-card-label { font-size: 13px; color: #718096 !important; font-weight: 600; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 22px; font-weight: bold; color: #1A202C !important; }
+                    .metric-card-label { font-size: 13px; color: #64748B !important; font-weight: 600; margin-bottom: 6px; }
+                    .metric-card-value { font-size: 22px; font-weight: bold; color: #0F172A !important; }
                 </style>
             """, unsafe_allow_html=True)
 
-        # FILTRAGEM DE DADOS COM BASE NO MODAL SELECIONADO
+        # APLICAÇÃO DOS FILTROS
         df_filtrado_reversa = df_raw_reversa.copy()
         df_filtrado_resumo = df_raw_resumo.copy()
 
@@ -391,7 +390,6 @@ else:
                     df_filtrado_resumo['nome_seller'].astype(str).str.lower() == empresa_usuario.lower()
                 ]
 
-        # HEADER COMPACTO DA OPERAÇÃO REVERSA
         st.markdown("<div class='subtitulo-destaque'>📋 Visão Geral da Operação Reversa</div>", unsafe_allow_html=True)
 
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
@@ -430,7 +428,7 @@ else:
 
         st.write("")
 
-        # DATA E HORA DA ÚLTIMA ATUALIZAÇÃO
+        # CÁLCULO DE KPIS
         data_hora_formatada = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
             data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
@@ -440,7 +438,6 @@ else:
         colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
         qtd_remessas_unicas = len(df_filtrado_reversa.drop_duplicates(subset=colunas_existentes)) if colunas_existentes else len(df_filtrado_reversa)
 
-        # KPIs PRINCIPAIS
         col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
         with col_kpi1:
@@ -456,7 +453,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # ANÁLISE GRÁFICA (TAXAS E EVOLUÇÃO)
+        # BLOCO 1: GRÁFICOS DE RESUMO (TAXA DE SELLER E TOP ABERTO)
         # ==========================================
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
@@ -464,6 +461,7 @@ else:
         col_graf3, col_graf4 = st.columns(2)
         META_TAXA_SELLER = 0.09
 
+        # GRÁFICO 1: EVOLUÇÃO MENSAL
         with col_graf3:
             st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
             col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
@@ -486,7 +484,7 @@ else:
                 df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_ano_definido')
                 df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
                 
-                cores_pontos = ['#E53E3E' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
+                cores_pontos = ['#EF4444' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
 
                 fig_linha_taxa = go.Figure()
                 fig_linha_taxa.add_trace(go.Scatter(
@@ -506,7 +504,7 @@ else:
                     y0=META_TAXA_SELLER,
                     x1=df_evolucao_taxa['mes_ano_definido'].iloc[-1],
                     y1=META_TAXA_SELLER,
-                    line=dict(color="#ECC94B", width=2, dash="dash")
+                    line=dict(color="#F59E0B", width=2, dash="dash")
                 )
 
                 max_taxa_y = df_evolucao_taxa['taxa_calc'].max() if not df_evolucao_taxa.empty else 0.15
@@ -525,6 +523,7 @@ else:
             else:
                 st.info("Sem dados suficientes para exibir a evolução da taxa.")
 
+        # GRÁFICO 2: TOP SELLERS EM ABERTO
         with col_graf4:
             st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
             if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
@@ -551,7 +550,7 @@ else:
                     text='taxa_str',
                     orientation='h',
                     template=template_plotly,
-                    color_discrete_sequence=['#E53E3E']
+                    color_discrete_sequence=['#EF4444']
                 )
 
                 max_taxa_aberto = df_top_aberto['taxa_aberto'].max() if not df_top_aberto.empty else 0.50
@@ -570,12 +569,214 @@ else:
 
         st.write("---")
 
+        # ==========================================
+        # BLOCO 2: GRÁFICOS DETALHADOS (REMESSAS, MOTIVOS, ATRASOS E TRACKING)
+        # ==========================================
+        st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
+        st.write("")
+
+        # GRÁFICO 3: VOLUME MENSAL DE REMESSAS
+        st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
+        col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+        
+        if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            df_temp = df_filtrado_reversa.copy()
+            df_temp[col_mes_grafico] = df_temp[col_mes_grafico].astype(str)
+            df_temp = df_temp[df_temp[col_mes_grafico].str.strip() != ""]
+
+            if colunas_existentes:
+                df_grafico_mes = df_temp.groupby(col_mes_grafico).apply(
+                    lambda g: len(g.drop_duplicates(subset=colunas_existentes))
+                ).reset_index(name='qtd_remessas_unicas')
+            else:
+                df_grafico_mes = df_temp.groupby(col_mes_grafico).size().reset_index(name='qtd_remessas_unicas')
+
+            df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+
+            fig_tempo = px.bar(
+                df_grafico_mes,
+                x=col_mes_grafico,
+                y='qtd_remessas_unicas',
+                text='qtd_remessas_unicas',
+                template=template_plotly,
+                color_discrete_sequence=[cor_grafico]
+            )
+            fig_tempo.update_traces(texttemplate='%{text:,}', textposition='outside')
+            fig_tempo.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=20, r=20, t=30, b=20),
+                height=350,
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=False),
+                xaxis_title="",
+                yaxis_title="Remessas Únicas"
+            )
+            st.plotly_chart(fig_tempo, use_container_width=True)
+
+        st.write("")
+        col_graf_mot, col_graf_grupo = st.columns(2)
+
+        # GRÁFICO 4: MOTIVOS DE TROCA
+        with col_graf_mot:
+            st.subheader("🔍 Principais Motivos de Troca")
+            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_unicos_motivo = df_filtrado_reversa.drop_duplicates(subset=colunas_existentes) if colunas_existentes else df_filtrado_reversa.copy()
+                df_motivos = df_unicos_motivo['motivo_troca'].value_counts().reset_index()
+                df_motivos.columns = ['motivo', 'quantidade']
+                total_motivos = df_motivos['quantidade'].sum()
+                df_motivos = df_motivos.head(10).sort_values('quantidade', ascending=True)
+
+                df_motivos['rotulo'] = df_motivos['quantidade'].apply(
+                    lambda v: f"{v:,} ({(v / total_motivos) * 100:.1f}%)".replace(",", ".")
+                )
+
+                fig_motivos = px.bar(
+                    df_motivos,
+                    x='quantidade',
+                    y='motivo',
+                    text='rotulo',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+                max_mot = df_motivos['quantidade'].max() if not df_motivos.empty else 100
+                fig_motivos.update_traces(textposition='outside')
+                fig_motivos.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=120, t=30, b=20),
+                    height=380,
+                    xaxis=dict(range=[0, max_mot * 1.45], showgrid=False),
+                    yaxis=dict(showgrid=False),
+                    xaxis_title="Remessas Únicas",
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_motivos, use_container_width=True)
+
+        # GRÁFICO 5: FAIXAS DE ATRASO NO SELLER (+5 DIAS)
+        with col_graf_grupo:
+            st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
+            if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_entregue_seller = df_filtrado_reversa[
+                    df_filtrado_reversa['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
+                ]
+
+                if not df_entregue_seller.empty:
+                    df_unicos_grupo = df_entregue_seller.drop_duplicates(subset=colunas_existentes) if colunas_existentes else df_entregue_seller.copy()
+                    df_grupo_seller = df_unicos_grupo['grupo_aberto_seller'].value_counts().reset_index()
+                    df_grupo_seller.columns = ['grupo_dias', 'quantidade']
+                    total_grupo = df_grupo_seller['quantidade'].sum()
+
+                    df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
+                        lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".")
+                    )
+
+                    ordem_grupos = ['0 DIAS CORRIDOS', '1 DIAS CORRIDOS', '2 DIAS CORRIDOS', '3 DIAS CORRIDOS', '4 DIAS CORRIDOS', '5 DIAS CORRIDOS', '+5 DIAS CORRIDOS']
+                    df_grupo_seller['grupo_dias'] = pd.Categorical(df_grupo_seller['grupo_dias'], categories=ordem_grupos, ordered=True)
+                    df_grupo_seller = df_grupo_seller.sort_values('grupo_dias')
+                    df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if "5 DIAS" in g and "+" in g else g)
+
+                    fig_grupo_seller = px.bar(
+                        df_grupo_seller,
+                        x='grupo_exibicao',
+                        y='quantidade',
+                        text='rotulo',
+                        template=template_plotly,
+                        color='grupo_exibicao',
+                        color_discrete_map={
+                            '⚠️ +5 DIAS CORRIDOS': '#EF4444',
+                            '0 DIAS CORRIDOS': '#94A3B8',
+                            '1 DIAS CORRIDOS': '#60A5FA',
+                            '2 DIAS CORRIDOS': '#3B82F6',
+                            '3 DIAS CORRIDOS': '#2563EB',
+                            '4 DIAS CORRIDOS': '#1D4ED8',
+                            '5 DIAS CORRIDOS': '#F59E0B'
+                        }
+                    )
+                    max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
+                    fig_grupo_seller.update_traces(textposition='outside')
+                    fig_grupo_seller.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        height=380,
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_grupo_seller, use_container_width=True)
+                else:
+                    st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período selecionado.")
+
+        st.write("")
+        st.write("---")
+
+        # GRÁFICO 6: JORNADA DO TRACKING (SINUSOIDAL)
+        st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
+        if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            df_unicos_tr = df_filtrado_reversa.drop_duplicates(subset=colunas_existentes) if colunas_existentes else df_filtrado_reversa.copy()
+            df_tracking = df_unicos_tr['tracking'].value_counts().reset_index()
+            df_tracking.columns = ['status_tracking', 'quantidade']
+            total_tracking = df_tracking['quantidade'].sum()
+
+            ordem_jornada = ['EM ABERTO', 'POSTADO/TRANSPORTADOR', 'ENTREGUE AO SELLER', 'FINALIZADO', 'REVERSAS EXPIRADAS', 'EXTRAVIO']
+            df_tracking['status_tracking'] = pd.Categorical(df_tracking['status_tracking'], categories=ordem_jornada, ordered=True)
+            df_tracking = df_tracking.dropna(subset=['status_tracking']).sort_values('status_tracking')
+
+            mapa_cores_jornada = {
+                'EM ABERTO': '#F59E0B',
+                'POSTADO/TRANSPORTADOR': '#3B82F6',
+                'ENTREGUE AO SELLER': '#10B981',
+                'FINALIZADO': '#14B8A6',
+                'REVERSAS EXPIRADAS': '#EF4444',
+                'EXTRAVIO': '#991B1B'
+            }
+
+            x_pts = [1, 2, 3, 4, 5, 6]
+            y_pts = [0.8, 3.5, 0.8, 3.5, 0.8, 3.5]
+            fig_jornada = go.Figure()
+
+            fig_jornada.add_trace(go.Scatter(
+                x=x_pts, y=y_pts, mode='lines',
+                line=dict(color='#64748B', width=3, dash='dash'),
+                hoverinfo='skip', showlegend=False
+            ))
+
+            for idx, row in enumerate(df_tracking.iterrows()):
+                status = row[1]['status_tracking']
+                qtd = row[1]['quantidade']
+                pct = (qtd / total_tracking * 100) if total_tracking > 0 else 0
+                cor = mapa_cores_jornada.get(status, '#3B82F6')
+                qtd_str = f"{qtd:,}".replace(",", ".")
+
+                pos = "top center" if y_pts[idx] == 3.5 else "bottom center"
+                texto_no = f"<b>{status}</b><br><span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span>" if y_pts[idx] == 3.5 else f"<span style='font-size:15px; color:{cor};'><b>{qtd_str}</b> ({pct:.1f}%)</span><br><b>{status}</b>"
+
+                fig_jornada.add_trace(go.Scatter(
+                    x=[x_pts[idx]], y=[y_pts[idx]], mode='markers+text',
+                    text=[texto_no], textposition=pos, textfont=dict(size=12),
+                    marker=dict(size=24, color=cor, line=dict(color='white', width=3)),
+                    showlegend=False, hoverinfo='text'
+                ))
+
+            fig_jornada.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=40, r=40, t=80, b=80),
+                height=480,
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 6.6]),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.2, 4.5])
+            )
+            st.plotly_chart(fig_jornada, use_container_width=True)
+
+        st.write("---")
+
         # ÁREA DE DOWNLOAD
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv = converter_df_para_csv(df_filtrado_reversa)
             nome_arquivo_csv = f"relatorio_reversa_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-
             st.download_button(
                 label="📥 Descarregar Relatório Completo em CSV (.csv)",
                 data=dados_csv,
@@ -585,16 +786,8 @@ else:
             )
 
     # ==========================================
-    # OUTRAS ABAS (PLACEHOLDERS REUTILIZÁVEIS)
+    # ABA: VENDAS
     # ==========================================
-    with aba_gerencial:
-        st.markdown("<div class='subtitulo-destaque'>📊 Visão Gerencial</div>", unsafe_allow_html=True)
-        st.info("ℹ️ Módulo de Visão Gerencial pronto para receber gráficos e indicadores executivos.")
-
-    with aba_boletim:
-        st.markdown("<div class='subtitulo-destaque'>🏪 Boletim Individual</div>", unsafe_allow_html=True)
-        st.info("ℹ️ Módulo de Boletim Individual do Seller pronto para uso.")
-
     with aba_vendas:
         st.markdown("<div class='subtitulo-destaque'>💰 Visão Geral de Vendas</div>", unsafe_allow_html=True)
-        st.info("ℹ️ Módulo de Vendas configurado e aguardando a conexão de dados SQL.")
+        st.info("ℹ️ Módulo de Vendas pronto para conexão de dados e relatórios comerciais.")
