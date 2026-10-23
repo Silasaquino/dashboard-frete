@@ -614,22 +614,27 @@ else:
 
         META_TAXA_SELLER = 0.09  # Meta de 9%
 
-        # 📊 GRÁFICO 1: EVOLUÇÃO MENSAL DA TAXA GERAL DE DEVOLUÇÃO (SELLER) COM META DE 9%
+        # 📊 GRÁFICO 1: EVOLUÇÃO MENSAL DA TAXA GERAL DE DEVOLUÇÃO COM META DE 9%
         with col_graf3:
-            st.subheader("🎯 Evolução Mensal da Taxa de Devolução (Seller)")
-            if 'mes_ano_definido' in df_filtrado_resumo.columns and 'taxa_devolucao_seller' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+            st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
+            
+            # Ajuste de suporte para 'taxa_devolucao' (antiga 'taxa_devolucao_seller')
+            col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
+            col_dev = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
+
+            if 'mes_ano_definido' in df_filtrado_resumo.columns and col_taxa in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_resumo_temp = df_filtrado_resumo.copy()
-                df_resumo_temp['taxa_devolucao_seller'] = pd.to_numeric(df_resumo_temp['taxa_devolucao_seller'], errors='coerce')
+                df_resumo_temp[col_taxa] = pd.to_numeric(df_resumo_temp[col_taxa], errors='coerce')
                 
-                if 'qtd_etr' in df_resumo_temp.columns and 'devolvido_seller' in df_resumo_temp.columns:
+                if 'qtd_etr' in df_resumo_temp.columns and col_dev in df_resumo_temp.columns:
                     df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido').agg(
                         tot_etr=('qtd_etr', 'sum'),
-                        tot_dev_seller=('devolvido_seller', 'sum')
+                        tot_dev=(col_dev, 'sum')
                     ).reset_index()
-                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa['tot_dev_seller'] / df_evolucao_taxa['tot_etr']
+                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa['tot_dev'] / df_evolucao_taxa['tot_etr']
                 else:
-                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido')['taxa_devolucao_seller'].mean().reset_index()
-                    df_evolucao_taxa.rename(columns={'taxa_devolucao_seller': 'taxa_calc'}, inplace=True)
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido')[col_taxa].mean().reset_index()
+                    df_evolucao_taxa.rename(columns={col_taxa: 'taxa_calc'}, inplace=True)
 
                 df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_ano_definido')
                 df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
@@ -646,7 +651,7 @@ else:
                     textposition='top center',
                     line=dict(color=cor_grafico, width=3),
                     marker=dict(size=10, color=cores_pontos),
-                    name='Taxa Devolução Seller'
+                    name='Taxa Devolução'
                 ))
 
                 fig_linha_taxa.add_shape(
