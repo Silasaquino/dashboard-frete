@@ -264,7 +264,7 @@ HAVING
 
 
 def atualizar_aba_google_sheets(sh, nome_aba, df, tamanho_lote=10000):
-    """Limpa, expande e atualiza uma aba específica em lotes."""
+    """Limpa e escreve os dados numa aba do Google Sheets."""
     try:
         worksheet = sh.worksheet(nome_aba)
     except gspread.WorksheetNotFound:
@@ -280,23 +280,20 @@ def atualizar_aba_google_sheets(sh, nome_aba, df, tamanho_lote=10000):
     linhas_atuais = worksheet.row_count
     if linhas_atuais < total_linhas:
         linhas_necessarias = total_linhas - linhas_atuais + 500
-        print(f"[{datetime.now()}] 📐 A expandir a grelha de '{nome_aba}' em +{linhas_necessarias} linhas...")
+        print(f"[{datetime.now()}] 📐 A expandir grelha de '{nome_aba}' em +{linhas_necessarias} linhas...")
         worksheet.add_rows(linhas_necessarias)
 
-    print(f"[{datetime.now()}] 📤 A enviar {total_linhas:,} linhas para a aba '{nome_aba}'...".replace(",", "."))
+    print(f"[{datetime.now()}] 📤 A enviar {total_linhas:,} linhas para '{nome_aba}'...".replace(",", "."))
     for i in range(0, total_linhas, tamanho_lote):
         lote = matriz_dados[i : i + tamanho_lote]
         linha_inicio = i + 1
-        linha_fim = i + len(lote)
-        
         intervalo = f"A{linha_inicio}"
         worksheet.update(intervalo, lote)
-        print(f"[{datetime.now()}]   ✅ Lote '{nome_aba}': linhas {linha_inicio} a {linha_fim} enviadas.")
         time.sleep(1)
 
 
 def executar_automacao():
-    print(f"[{datetime.now()}] 🔄 A iniciar a consulta no Redshift...")
+    print(f"[{datetime.now()}] 🔄 A conectar ao Redshift...")
     
     try:
         conexao = psycopg2.connect(
@@ -307,77 +304,73 @@ def executar_automacao():
             password=REDSHIFT_PASSWORD
         )
 
-        # 1. RESUMO REVERSA
-        print(f"[{datetime.now()}] 📥 A extrair dados do RESUMO REVERSA...")
+        # 1. EXTRAÇÃO DO RESUMO REVERSA
+        print(f"[{datetime.now()}] 📥 A extrair RESUMO REVERSA...")
         df_resumo = pd.read_sql(QUERY_RESUMO, conexao)
 
-        colunas_taxas = [
-            'taxa_devolucao_aberto', 
-            'taxa_devolucao', 
-            'taxa_devolucao_reprovada', 
-            'taxa_geral_devolucao'
-        ]
-
+        colunas_taxas = ['taxa_devolucao_aberto', 'taxa_devolucao', 'taxa_devolucao_reprovada', 'taxa_geral_devolucao']
         for col in colunas_taxas:
             if col in df_resumo.columns:
                 df_resumo[col] = pd.to_numeric(df_resumo[col], errors='coerce').round(6)
 
         df_resumo = df_resumo.fillna('')
-        print(f"[{datetime.now()}] ✅ Resumo extraído e formatado: {len(df_resumo):,} linhas.".replace(",", "."))
+        print(f"[{datetime.now()}] ✅ Resumo extraído: {len(df_resumo):,} linhas.".replace(",", "."))
 
-        # 2. BASE REVERSA DETALHADA
-        print(f"[{datetime.now()}] 📥 A extrair dados da BASE REVERSA...")
+        # 2. EXTRAÇÃO DA BASE REVERSA DETALHADA
+        print(f"[{datetime.now()}] 📥 A extrair BASE REVERSA...")
         df_base = pd.read_sql(QUERY_BASE, conexao)
         df_base = df_base.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
         total_linhas_base = len(df_base)
-        print(f"[{datetime.now()}] ✅ Base extraída: {total_linhas_base:,} linhas.".replace(",", "."))
+        print(f"[{datetime.now()}] ✅ Base extraída do Redshift: TOTAL DE {total_linhas_base:,} LINHAS.".replace(",", "."))
 
         conexao.close()
 
     except Exception as e:
-        print(f"[{datetime.now()}] ❌ Erro na consulta ao Redshift: {e}")
+        print(f"[{datetime.now()}] ❌ Erro no Redshift: {e}")
         return
 
-    # 3. ENVIO DOS DADOS PARA O GOOGLE SHEETS
-    print(f"[{datetime.now()}] 🔄 A conectar à API do Google Sheets...")
+    # 3. ENVIO DOS DADOS PARA AS 5 PLANILHAS DO GOOGLE SHEETS
+    print(f"[{datetime.now()}] 🔄 A conectar ao Google Sheets...")
     caminho_credenciais = os.path.join(os.path.dirname(__file__), "credenciais.json")
 
     try:
         gc = gspread.service_account(filename=caminho_credenciais)
 
-        # A) Atualização da aba RESUMO REVERSA na planilha principal
+        # Atualiza o RESUMO REVERSA na planilha principal
         sh_principal = gc.open_by_key(SHEET_PRINCIPAL_ID)
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO, df_resumo)
 
-        # B) Divisão da BASE em lotes de até 300.000 linhas
+        # Divisão da BASE em blocos de 300.000 linhas
         blocos_base = [
             df_base[i : i + LIMIT_LINHAS_POR_SHEET]
             for i in range(0, total_linhas_base, LIMIT_LINHAS_POR_SHEET)
         ]
 
-        print(f"[{datetime.now()}] 📦 A base foi dividida em {len(blocos_base)} lote(s) de até {LIMIT_LINHAS_POR_SHEET:,} linhas.".replace(",", "."))
+        print(f"[{datetime.now()}] 📦 Total de dados divididos em {len(blocos_base)} lote(s).")
 
-        for idx, df_lote in enumerate(blocos_base):
-            if idx < len(PLANILHAS_BASE):
-                info_sheet = PLANILHAS_BASE[idx]
-                sheet_id = info_sheet["id"]
+        for idx in range(len(PLANILHAS_BASE)):
+            info_sheet = PLANILHAS_BASE[idx]
+            sheet_id = info_sheet["id"]
+            sh_lote = gc.open_by_key(sheet_id)
 
-                print(f"[{datetime.now()}] 🚀 A enviar Lote {idx + 1} ({len(df_lote):,} linhas) para o Sheet ID: {sheet_id}...")
-                
-                try:
-                    sh_lote = gc.open_by_key(sheet_id)
-                    atualizar_aba_google_sheets(sh_lote, NOME_ABA_BASE, df_lote)
-                    print(f"[{datetime.now()}] ✅ Lote {idx + 1} colado com sucesso!")
-                except Exception as err_sheet:
-                    print(f"[{datetime.now()}] ❌ Erro ao atualizar o Sheet ID '{sheet_id}': {err_sheet}")
-                    print(f"⚠️ Dica: Verifique se o email da Service Account em 'credenciais.json' tem permissão de Editor nesta planilha.")
+            if idx < len(blocos_base):
+                df_lote = blocos_base[idx]
+                print(f"[{datetime.now()}] 🚀 A enviar Lote {idx + 1} ({len(df_lote):,} linhas) para Sheet ID: {sheet_id}...")
+                atualizar_aba_google_sheets(sh_lote, NOME_ABA_BASE, df_lote)
+                print(f"[{datetime.now()}] ✅ Lote {idx + 1} gravado com sucesso!")
             else:
-                print(f"[{datetime.now()}] ⚠️ Alerta: O total de linhas ({total_linhas_base:,}) excedeu a capacidade das {len(PLANILHAS_BASE)} planilhas de BASE.".replace(",", "."))
+                # Se houver menos linhas que a capacidade total, limpa as planilhas sobressalentes
+                print(f"[{datetime.now()}] 🧹 A limpar planilha sobressalente ID: {sheet_id}...")
+                try:
+                    ws = sh_lote.worksheet(NOME_ABA_BASE)
+                    ws.clear()
+                except Exception:
+                    pass
 
-        print(f"[{datetime.now()}] 🎉 Sucesso! Processo de atualização do Redshift para o Google Sheets concluído com êxito.")
+        print(f"[{datetime.now()}] 🎉 Atualização de todas as planilhas concluída!")
 
     except Exception as e:
-        print(f"[{datetime.now()}] ❌ Erro ao atualizar o Google Sheets: {e}")
+        print(f"[{datetime.now()}] ❌ Erro no Google Sheets: {e}")
 
 
 if __name__ == "__main__":

@@ -9,3 +9,5 @@ pandas
 openpyxl
 psycopg2-binary
 plotly
+gspread
+requests
