@@ -26,17 +26,13 @@ if "autenticado" not in st.session_state:
 if "ultima_atividade" not in st.session_state:
     st.session_state["ultima_atividade"] = None
 
-# ID da planilha e URL de exportação para leitura de credenciais
 SHEET_ID = "1WuROB09uYwPUeMaG7fS3CroqPFB9cEXtolcgRoA6erY"
 URL_CSV_GOOGLE_SHEETS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-
-# URL DO GOOGLE APPS SCRIPT PARA GRAVAÇÃO DE ACESSOS:
 URL_WEBAPP_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyvMmlYokWB2PpkxkewxpNAdGCKQmQ_S13ybz0qmqaCvgS77_HVhBtk-ftXukSCcYGX/exec"
 
 
 @st.cache_data(ttl=300)
 def carregar_credenciais_google():
-    """Lê a folha do Google Sheets com cache leve de 5 minutos."""
     try:
         requisicao = urllib.request.Request(
             URL_CSV_GOOGLE_SHEETS,
@@ -66,7 +62,6 @@ def carregar_credenciais_google():
 
 
 def registrar_acesso_google_sheets(login, empresa):
-    """Envia os dados de acesso para o Google Apps Script em segundo plano."""
     try:
         data_hora_atual = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
@@ -92,7 +87,6 @@ def registrar_acesso_google_sheets(login, empresa):
 
 
 def verificar_login_google():
-    """Valida as credenciais inseridas e inicia o registo do acesso."""
     usuario_input = st.session_state.get("campo_usuario", "").strip()
     senha_input = st.session_state.get("campo_senha", "").strip()
     credenciais_validas = carregar_credenciais_google()
@@ -114,13 +108,11 @@ def verificar_login_google():
 
 
 def fazer_logout():
-    """Encerra manualmente a sessão do utilizador."""
     st.session_state["autenticado"] = False
     st.session_state["ultima_atividade"] = None
 
 
 def validar_tempo_sessao():
-    """Valida a expiração por inatividade de 10 minutos."""
     if st.session_state["autenticado"] and st.session_state["ultima_atividade"] is not None:
         tempo_decorrido = datetime.now() - st.session_state["ultima_atividade"]
 
@@ -133,7 +125,6 @@ def validar_tempo_sessao():
 
 @st.cache_data
 def converter_df_para_csv(df):
-    """Converte o DataFrame em CSV instantâneo e ultra leve."""
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
 
 
@@ -141,7 +132,7 @@ validar_tempo_sessao()
 
 
 # ==========================================
-# 2. TELA DE LOGIN (Exibida se NÃO estiver autenticado)
+# 2. TELA DE LOGIN
 # ==========================================
 if not st.session_state["autenticado"]:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso Restrito ao Dashboard</h2>", unsafe_allow_html=True)
@@ -156,7 +147,7 @@ if not st.session_state["autenticado"]:
         st.button("Entrar", on_click=verificar_login_google, use_container_width=True)
 
 # ==========================================
-# 3. CONTEÚDO DO DASHBOARD (Exibido se ESTIVER autenticado)
+# 3. CONTEÚDO DO DASHBOARD
 # ==========================================
 else:
     empresa_usuario = st.session_state.get("empresa_logada", "").strip()
@@ -165,24 +156,23 @@ else:
     st.sidebar.title("Perfil")
     st.sidebar.write(f"👤 **Utilizador:** {st.session_state.get('usuario_logado', '')}")
     st.sidebar.write(f"🏢 **Empresa:** {empresa_usuario}")
-    st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout)
+    st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
     st.sidebar.write("---")
 
     # ==========================================
     # CARREGAMENTO CONSOLIDADO MULTI-SHEETS
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
-        {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},          # Parte 1 (Principal)
-        {"id": "10zd0gTWei38fpjBZ4xNuIe0gdI8FGbscX3bc6uYgewE", "gid": "0"},          # Parte 2
-        {"id": "1FBS9BSal8DBtyVSOhGKBcNIa8EmktSunsuCCC9AuM34", "gid": "0"},          # Parte 3
-        {"id": "17f48qNZ1MVvgOwI467OypCrgR-iQl3TqZ7sosLp3s7Y", "gid": "638743010"},  # Parte 4
-        {"id": "1AyYe3M3kHCnlZYjD-GSR9oHr_6rGqsL8KMBUnnrvcx4", "gid": "0"}           # Parte 5
+        {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},
+        {"id": "10zd0gTWei38fpjBZ4xNuIe0gdI8FGbscX3bc6uYgewE", "gid": "0"},
+        {"id": "1FBS9BSal8DBtyVSOhGKBcNIa8EmktSunsuCCC9AuM34", "gid": "0"},
+        {"id": "17f48qNZ1MVvgOwI467OypCrgR-iQl3TqZ7sosLp3s7Y", "gid": "638743010"},
+        {"id": "1AyYe3M3kHCnlZYjD-GSR9oHr_6rGqsL8KMBUnnrvcx4", "gid": "0"}
     ]
 
     SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
     def carregar_dados_reversa_consolidados():
-        """Lê em tempo real todas as planilhas e empilha os dados sem usar cache travado."""
         lista_dfs = []
         for item in PLANILHAS_BASE_CONFIG:
             sheet_id = item["id"]
@@ -212,7 +202,6 @@ else:
 
     @st.cache_data(ttl=120)
     def carregar_dados_resumo():
-        """Lê a aba RESUMO REVERSA do link principal."""
         url_csv_resumo = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
         try:
             df_resumo = pd.read_csv(url_csv_resumo)
@@ -237,7 +226,6 @@ else:
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        # PAINEL DE CONTROLE SUPERIOR
         col_modal, col_vazia, col_tema = st.columns([2.5, 3, 1.5])
 
         with col_modal:
@@ -259,16 +247,21 @@ else:
                 label_visibility="collapsed"
             )
 
-        # INJEÇÃO CSS COMPATÍVEL COM STREAMLIT SIDEBAR E MODO ESCURO
+        # CSS DE ALTO CONTRASTE + REMOÇÃO DA FAIXA BRANCA DO NAVEGADOR
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
+                    /* Oculta o topo/header padrão do Streamlit (Remove a faixa branca) */
+                    header[data-testid="stHeader"] {
+                        background-color: #0B0F19 !important;
+                    }
+                    
                     /* Fundo Global */
                     .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
 
-                    /* Força o Fundo Escuro na Sidebar e Contraste nos Textos */
+                    /* Sidebar Escura e Textos Visíveis */
                     [data-testid="stSidebar"] {
                         background-color: #111827 !important;
                         border-right: 1px solid #1F2937 !important;
@@ -284,11 +277,24 @@ else:
                         font-weight: 700 !important;
                     }
 
-                    /* Textos das Abas Superiores */
+                    /* Botão de Logout Estilizado na Sidebar */
+                    [data-testid="stSidebar"] button {
+                        background-color: #374151 !important;
+                        color: #FFFFFF !important;
+                        border: 1px solid #4B5563 !important;
+                        font-weight: 800 !important;
+                        border-radius: 6px !important;
+                    }
+                    [data-testid="stSidebar"] button:hover {
+                        background-color: #EF4444 !important;
+                        border-color: #EF4444 !important;
+                    }
+
+                    /* Estilização das Abas Superiores (Alto Contraste) */
                     .stTabs [data-baseweb="tab"] {
                         font-size: 18px !important;
                         font-weight: 800 !important;
-                        color: #9CA3AF !important;
+                        color: #D1D5DB !important;
                     }
                     .stTabs [aria-selected="true"] {
                         color: #60A5FA !important;
@@ -344,6 +350,9 @@ else:
             cor_grafico = "#2563EB"
             st.markdown("""
                 <style>
+                    header[data-testid="stHeader"] {
+                        background-color: #FFFFFF !important;
+                    }
                     .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
                     
                     [data-testid="stSidebar"] {
