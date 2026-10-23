@@ -182,7 +182,7 @@ else:
     SHEET_ID_RESUMO = "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU"
 
     def carregar_dados_reversa_consolidados():
-        """Lê em tempo real todas as 5 planilhas e empilha os dados sem usar cache travado."""
+        """Lê em tempo real todas as planilhas e empilha os dados sem usar cache travado."""
         lista_dfs = []
         for item in PLANILHAS_BASE_CONFIG:
             sheet_id = item["id"]
@@ -259,7 +259,7 @@ else:
                 label_visibility="collapsed"
             )
 
-        # INJEÇÃO CSS CORRIGIDA PARA MODO ESCURO E MODO CLARO
+        # INJEÇÃO CSS COMPATÍVEL COM STREAMLIT SIDEBAR E MODO ESCURO
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
@@ -268,20 +268,20 @@ else:
                     /* Fundo Global */
                     .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
 
-                    /* Estilização da Sidebar no Modo Escuro (Garante Visibilidade de Todos os Textos) */
-                    section[data-testid="stSidebar"] {
+                    /* Força o Fundo Escuro na Sidebar e Contraste nos Textos */
+                    [data-testid="stSidebar"] {
                         background-color: #111827 !important;
                         border-right: 1px solid #1F2937 !important;
                     }
-                    section[data-testid="stSidebar"] *, 
-                    section[data-testid="stSidebar"] p, 
-                    section[data-testid="stSidebar"] span, 
-                    section[data-testid="stSidebar"] label,
-                    section[data-testid="stSidebar"] h1,
-                    section[data-testid="stSidebar"] h2,
-                    section[data-testid="stSidebar"] h3 {
+                    [data-testid="stSidebar"] *, 
+                    [data-testid="stSidebar"] p, 
+                    [data-testid="stSidebar"] span, 
+                    [data-testid="stSidebar"] label,
+                    [data-testid="stSidebar"] h1,
+                    [data-testid="stSidebar"] h2,
+                    [data-testid="stSidebar"] h3 {
                         color: #F3F4F6 !important;
-                        font-weight: 600 !important;
+                        font-weight: 700 !important;
                     }
 
                     /* Textos das Abas Superiores */
@@ -346,11 +346,11 @@ else:
                 <style>
                     .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
                     
-                    section[data-testid="stSidebar"] {
+                    [data-testid="stSidebar"] {
                         background-color: #F8FAFC !important;
                         border-right: 1px solid #E2E8F0 !important;
                     }
-                    section[data-testid="stSidebar"] * { color: #0F172A !important; }
+                    [data-testid="stSidebar"] * { color: #0F172A !important; }
 
                     .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
                     .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
