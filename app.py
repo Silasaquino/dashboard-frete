@@ -169,7 +169,7 @@ else:
     st.sidebar.write("---")
 
     # ==========================================
-    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS SEM TRAVAMENTO
+    # CARREGAMENTO CONSOLIDADO MULTI-SHEETS
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},          # Parte 1 (Principal)
@@ -189,14 +189,12 @@ else:
             gid = item["gid"]
             df_temp = pd.DataFrame()
             
-            # Tentativa 1: Exportação CSV direta via GID
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
                 df_temp = pd.read_csv(url_csv)
             except Exception:
                 pass
 
-            # Tentativa 2: Nome direto da aba 'BASE' via Google Viz API
             if df_temp.empty or len(df_temp.columns) <= 1:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
@@ -223,7 +221,7 @@ else:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    with st.spinner("⏳ A carregar e consolidar dados de todas as 5 planilhas..."):
+    with st.spinner("⏳ A carregar e consolidar dados de todas as planilhas..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
 
@@ -261,18 +259,49 @@ else:
                 label_visibility="collapsed"
             )
 
-        # INJEÇÃO CSS DE ALTO CONTRASTE
+        # INJEÇÃO CSS CORRIGIDA PARA MODO ESCURO E MODO CLARO
         if tema_selecionado == "Escuro 🌙":
             template_plotly = "plotly_dark"
             cor_grafico = "#60A5FA"
             st.markdown("""
                 <style>
+                    /* Fundo Global */
                     .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
-                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #94A3B8 !important; }
-                    .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
-                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span { color: #FFFFFF !important; font-weight: 700 !important; }
+
+                    /* Estilização da Sidebar no Modo Escuro (Garante Visibilidade de Todos os Textos) */
+                    section[data-testid="stSidebar"] {
+                        background-color: #111827 !important;
+                        border-right: 1px solid #1F2937 !important;
+                    }
+                    section[data-testid="stSidebar"] *, 
+                    section[data-testid="stSidebar"] p, 
+                    section[data-testid="stSidebar"] span, 
+                    section[data-testid="stSidebar"] label,
+                    section[data-testid="stSidebar"] h1,
+                    section[data-testid="stSidebar"] h2,
+                    section[data-testid="stSidebar"] h3 {
+                        color: #F3F4F6 !important;
+                        font-weight: 600 !important;
+                    }
+
+                    /* Textos das Abas Superiores */
+                    .stTabs [data-baseweb="tab"] {
+                        font-size: 18px !important;
+                        font-weight: 800 !important;
+                        color: #9CA3AF !important;
+                    }
+                    .stTabs [aria-selected="true"] {
+                        color: #60A5FA !important;
+                        border-bottom-color: #60A5FA !important;
+                    }
+
+                    /* Rádios e Parágrafos da Área Principal */
+                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
+                        color: #FFFFFF !important;
+                        font-weight: 700 !important;
+                    }
                     
-                    /* Faixa Unificada de Título + Atualização */
+                    /* Faixa Unificada de Título */
                     .header-container-unificado {
                         background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
                         border-left: 6px solid #60A5FA !important;
@@ -296,6 +325,7 @@ else:
                     .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
                     .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
 
+                    /* Botão de Download CSV */
                     div[data-testid="stDownloadButton"] button {
                         background-color: #EF4444 !important;
                         color: #FFFFFF !important;
@@ -305,7 +335,6 @@ else:
                         border-radius: 8px !important;
                         padding: 0.8rem 1.5rem !important;
                         width: 100% !important;
-                        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important;
                     }
                     div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
                 </style>
@@ -316,9 +345,16 @@ else:
             st.markdown("""
                 <style>
                     .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
+                    
+                    section[data-testid="stSidebar"] {
+                        background-color: #F8FAFC !important;
+                        border-right: 1px solid #E2E8F0 !important;
+                    }
+                    section[data-testid="stSidebar"] * { color: #0F172A !important; }
+
                     .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
                     .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
-                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b, span { color: #0F172A !important; font-weight: 700 !important; }
+                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
                     
                     .header-container-unificado {
                         background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
@@ -406,7 +442,7 @@ else:
             data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
             data_hora_formatada = data_max.strftime('%d/%m/%Y às %H:%M:%S')
 
-        # BARRA DE TÍTULO UNIFICADA COM A ÚLTIMA ATUALIZAÇÃO ALINHADA À DIREITA
+        # BARRA DE TÍTULO UNIFICADA
         st.markdown(
             f"""
             <div class='header-container-unificado'>
@@ -453,7 +489,7 @@ else:
 
         st.write("")
 
-        # KPIS (3 COLUNAS - FOCO TOTAL NAS MÉTRICAS PRINCIPAIS)
+        # KPIS
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
         qtd_remessas_unicas = len(df_filtrado_reversa.drop_duplicates(subset=colunas_existentes)) if colunas_existentes else len(df_filtrado_reversa)
@@ -471,7 +507,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # BLOCO 1: GRÁFICOS DE RESUMO (TAXA DE SELLER E TOP ABERTO)
+        # BLOCO 1: GRÁFICOS DE RESUMO
         # ==========================================
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
@@ -588,7 +624,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # BLOCO 2: GRÁFICOS DETALHADOS (REMESSAS, MOTIVOS, ATRASOS E TRACKING)
+        # BLOCO 2: GRÁFICOS DETALHADOS
         # ==========================================
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
