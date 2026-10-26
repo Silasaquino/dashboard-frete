@@ -163,7 +163,7 @@ def converter_df_para_csv(df):
 def obter_meses_referencia():
     hoje = datetime.now()
     if hoje.day <= 4:
-        # Até dia 04: dados do mês passado
+        # Até dia 04: dados consolidados do mês passado
         dt_ref = hoje.replace(day=1) - timedelta(days=1)
         dt_ant = dt_ref.replace(day=1) - timedelta(days=1)
     else:
@@ -1014,7 +1014,6 @@ else:
             df_atual = df_c[df_c['mes_iso'] == mes_atual_iso]
             df_ant = df_c[df_c['mes_iso'] == mes_ant_iso]
 
-            # Se não houver dados exatos com o filtro ISO, recai sobre os 2 meses mais recentes
             if df_atual.empty and not df_c.empty:
                 meses_disp = sorted([m for m in df_c['mes_iso'].unique() if len(m) >= 4])
                 if len(meses_disp) >= 1:
@@ -1249,93 +1248,94 @@ else:
 
         st.write("---")
 
-        # 6. FLUXO DE RECOLHA (MILKRUN)
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Fluxo de Recolha (Milkrun)</h3>", unsafe_allow_html=True)
-        t_ab, t_col, t_tr, t_leap = 0, 0, 0, 0
-        if not f_tracking.empty and 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns:
-            for _, r in f_tracking.iterrows():
-                st_p = str(r['status_pedido']).upper().strip()
-                q_p = int(pd.to_numeric(str(r['quantidade']).replace(',', '.'), errors='coerce') or 0)
-                if "ABERTO" in st_p:
-                    t_ab += q_p
-                elif "COLETA" in st_p:
-                    t_col += q_p
-                elif "TRANS" in st_p or "TRÂNSITO" in st_p:
-                    t_tr += q_p
-                elif "LEAP" in st_p:
-                    t_leap += q_p
+        # 6. FLUXO DE RECOLHA (RENDERIZADO EXCLUSIVAMENTE SE FOR MILKRUN)
+        if "MILKRUN" in modal_selecionado.upper():
+            st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Fluxo de Recolha (Milkrun)</h3>", unsafe_allow_html=True)
+            t_ab, t_col, t_tr, t_leap = 0, 0, 0, 0
+            if not f_tracking.empty and 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns:
+                for _, r in f_tracking.iterrows():
+                    st_p = str(r['status_pedido']).upper().strip()
+                    q_p = int(pd.to_numeric(str(r['quantidade']).replace(',', '.'), errors='coerce') or 0)
+                    if "ABERTO" in st_p:
+                        t_ab += q_p
+                    elif "COLETA" in st_p:
+                        t_col += q_p
+                    elif "TRANS" in st_p or "TRÂNSITO" in st_p:
+                        t_tr += q_p
+                    elif "LEAP" in st_p:
+                        t_leap += q_p
 
-        c_tr1, c_arr1, c_tr2, c_arr2, c_tr3, c_arr3, c_tr4 = st.columns([2, 0.5, 2, 0.5, 2, 0.5, 2])
-        with c_tr1:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📝</div><div class='metric-card-label'>EM ABERTO</div><div class='metric-card-value'>{t_ab:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with c_arr1:
-            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
-        with c_tr2:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📦</div><div class='metric-card-label'>PRONTO COLETA</div><div class='metric-card-value'>{t_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with c_arr2:
-            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
-        with c_tr3:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>EM TRÂNSITO</div><div class='metric-card-value'>{t_tr:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with c_arr3:
-            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
-        with c_tr4:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏢</div><div class='metric-card-label'>CHEGOU LEAP</div><div class='metric-card-value' style='color:#10B981;'>{t_leap:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            c_tr1, c_arr1, c_tr2, c_arr2, c_tr3, c_arr3, c_tr4 = st.columns([2, 0.5, 2, 0.5, 2, 0.5, 2])
+            with c_tr1:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📝</div><div class='metric-card-label'>EM ABERTO</div><div class='metric-card-value'>{t_ab:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with c_arr1:
+                st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+            with c_tr2:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📦</div><div class='metric-card-label'>PRONTO COLETA</div><div class='metric-card-value'>{t_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with c_arr2:
+                st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+            with c_tr3:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>EM TRÂNSITO</div><div class='metric-card-value'>{t_tr:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with c_arr3:
+                st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+            with c_tr4:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏢</div><div class='metric-card-label'>CHEGOU LEAP</div><div class='metric-card-value' style='color:#10B981;'>{t_leap:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
 
-        st.write("")
-        col_sva_cards, col_sva_graf = st.columns([1, 2])
-        s_pz, s_hj, s_at, s_tot = 0, 0, 0, 0
-        if not f_sva.empty and 'qtd_sva' in f_sva.columns:
-            s_tot = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-            s_pz = int(s_tot * 0.7)
-            s_hj = int(s_tot * 0.2)
-            s_at = s_tot - (s_pz + s_hj)
+            st.write("")
+            col_sva_cards, col_sva_graf = st.columns([1, 2])
+            s_pz, s_hj, s_at, s_tot = 0, 0, 0, 0
+            if not f_sva.empty and 'qtd_sva' in f_sva.columns:
+                s_tot = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+                s_pz = int(s_tot * 0.7)
+                s_hj = int(s_tot * 0.2)
+                s_at = s_tot - (s_pz + s_hj)
 
-        with col_sva_cards:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px;'>
-                    <div style='font-size: 15px; font-weight: 800; color: #FFFFFF; margin-bottom: 14px;'>Tentativas de Coleta</div>
-                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
-                        <span style='color: #94A3B8; font-weight: 600;'>No Prazo</span>
-                        <strong style='color: #10B981;'>{s_pz:,}</strong>
+            with col_sva_cards:
+                st.markdown(f"""
+                    <div class='metric-card' style='text-align: left; padding: 22px;'>
+                        <div style='font-size: 15px; font-weight: 800; color: #FFFFFF; margin-bottom: 14px;'>Tentativas de Coleta</div>
+                        <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
+                            <span style='color: #94A3B8; font-weight: 600;'>No Prazo</span>
+                            <strong style='color: #10B981;'>{s_pz:,}</strong>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
+                            <span style='color: #94A3B8; font-weight: 600;'>Vencem Hoje</span>
+                            <strong style='color: #F59E0B;'>{s_hj:,}</strong>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px;'>
+                            <span style='color: #94A3B8; font-weight: 600;'>Em Atraso</span>
+                            <strong style='color: #EF4444;'>{s_at:,}</strong>
+                        </div>
+                        <div style='background-color: #0B0F19; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #334155;'>
+                            <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>Total (Mês Atual)</div>
+                            <div style='font-size: 26px; font-weight: 900; color: #FFFFFF; margin-top: 4px;'>{s_tot:,}</div>
+                        </div>
                     </div>
-                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
-                        <span style='color: #94A3B8; font-weight: 600;'>Vencem Hoje</span>
-                        <strong style='color: #F59E0B;'>{s_hj:,}</strong>
-                    </div>
-                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px;'>
-                        <span style='color: #94A3B8; font-weight: 600;'>Em Atraso</span>
-                        <strong style='color: #EF4444;'>{s_at:,}</strong>
-                    </div>
-                    <div style='background-color: #0B0F19; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #334155;'>
-                        <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>Total (Mês Atual)</div>
-                        <div style='font-size: 26px; font-weight: 900; color: #FFFFFF; margin-top: 4px;'>{s_tot:,}</div>
-                    </div>
-                </div>
-            """.replace(",", "."), unsafe_allow_html=True)
+                """.replace(",", "."), unsafe_allow_html=True)
 
-        with col_sva_graf:
-            st.subheader("Histórico de Tentativas (SVA)")
-            if not f_sva.empty:
-                df_sva_plot = f_sva.copy()
-                col_sva_label = 'sva' if 'sva' in df_sva_plot.columns else ('delivery_type' if 'delivery_type' in df_sva_plot.columns else df_sva_plot.columns[0])
-                df_sva_plot['qtd_sva'] = pd.to_numeric(df_sva_plot['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                df_sva_agg = df_sva_plot.groupby(col_sva_label, as_index=False)['qtd_sva'].sum().head(6)
+            with col_sva_graf:
+                st.subheader("Histórico de Tentativas (SVA)")
+                if not f_sva.empty:
+                    df_sva_plot = f_sva.copy()
+                    col_sva_label = 'sva' if 'sva' in df_sva_plot.columns else ('delivery_type' if 'delivery_type' in df_sva_plot.columns else df_sva_plot.columns[0])
+                    df_sva_plot['qtd_sva'] = pd.to_numeric(df_sva_plot['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    df_sva_agg = df_sva_plot.groupby(col_sva_label, as_index=False)['qtd_sva'].sum().head(6)
 
-                fig_sva_c = px.bar(df_sva_agg, x=col_sva_label, y='qtd_sva', text='qtd_sva', template=template_plotly, color_discrete_sequence=['#3B82F6'])
-                fig_sva_c.update_traces(textposition='outside')
-                fig_sva_c.update_layout(
-                    height=240,
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(showgrid=False),
-                    xaxis_title="",
-                    yaxis_title="Qtd SVA"
-                )
-                st.plotly_chart(fig_sva_c, use_container_width=True)
-            else:
-                st.info("Sem histórico de tentativas SVA.")
+                    fig_sva_c = px.bar(df_sva_agg, x=col_sva_label, y='qtd_sva', text='qtd_sva', template=template_plotly, color_discrete_sequence=['#3B82F6'])
+                    fig_sva_c.update_traces(textposition='outside')
+                    fig_sva_c.update_layout(
+                        height=240,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(showgrid=False),
+                        xaxis_title="",
+                        yaxis_title="Qtd SVA"
+                    )
+                    st.plotly_chart(fig_sva_c, use_container_width=True)
+                else:
+                    st.info("Sem histórico de tentativas SVA.")
 
-        st.write("---")
+            st.write("---")
 
         # 7. IMPACTO DE CANCELAMENTOS E PREJUDICADO
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
@@ -1357,21 +1357,41 @@ else:
             )
             v_fin = float(pd.to_numeric(serie_prej, errors='coerce').fillna(0.0).sum())
 
-        col_imp1, col_imp2, col_imp3, col_imp4 = st.columns(4)
-        with col_imp1:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏪</div><div class='metric-card-label'>Cancelado (Seller)</div><div class='metric-card-value'>{c_sel:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_imp2:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>Falha na Coleta</div><div class='metric-card-value'>{c_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_imp3:
-            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>👤</div><div class='metric-card-label'>Cancelado (Cliente)</div><div class='metric-card-value'>{c_cli:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_imp4:
-            st.markdown(f"""
-                <div class='metric-card' style='background-color: #EF4444 !important; border: none !important;'>
-                    <div style='font-size: 32px;'>📉</div>
-                    <div class='metric-card-label' style='color: #FFFFFF !important; opacity: 0.9;'>Valor Prejudicado (R$)</div>
-                    <div class='metric-card-value' style='color: #FFFFFF !important;'>R$ {v_fin:,.2f}</div>
-                </div>
-            """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+        exibir_coluna_coleta = not (
+            modal_selecionado != "GERAL" and 
+            ("DROPSHIPPING" in modal_selecionado.upper() or "DAFITI ENVIOS" in modal_selecionado.upper())
+        )
+
+        if exibir_coluna_coleta:
+            col_imp1, col_imp2, col_imp3, col_imp4 = st.columns(4)
+            with col_imp1:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏪</div><div class='metric-card-label'>Cancelado (Seller)</div><div class='metric-card-value'>{c_sel:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with col_imp2:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>Falha na Coleta</div><div class='metric-card-value'>{c_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with col_imp3:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>👤</div><div class='metric-card-label'>Cancelado (Cliente)</div><div class='metric-card-value'>{c_cli:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with col_imp4:
+                st.markdown(f"""
+                    <div class='metric-card' style='background-color: #EF4444 !important; border: none !important;'>
+                        <div style='font-size: 32px;'>📉</div>
+                        <div class='metric-card-label' style='color: #FFFFFF !important; opacity: 0.9;'>Valor Prejudicado (R$)</div>
+                        <div class='metric-card-value' style='color: #FFFFFF !important;'>R$ {v_fin:,.2f}</div>
+                    </div>
+                """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+        else:
+            col_imp1, col_imp3, col_imp4 = st.columns(3)
+            with col_imp1:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏪</div><div class='metric-card-label'>Cancelado (Seller)</div><div class='metric-card-value'>{c_sel:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with col_imp3:
+                st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>👤</div><div class='metric-card-label'>Cancelado (Cliente)</div><div class='metric-card-value'>{c_cli:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            with col_imp4:
+                st.markdown(f"""
+                    <div class='metric-card' style='background-color: #EF4444 !important; border: none !important;'>
+                        <div style='font-size: 32px;'>📉</div>
+                        <div class='metric-card-label' style='color: #FFFFFF !important; opacity: 0.9;'>Valor Prejudicado (R$)</div>
+                        <div class='metric-card-value' style='color: #FFFFFF !important;'>R$ {v_fin:,.2f}</div>
+                    </div>
+                """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
 
         st.write("---")
 
