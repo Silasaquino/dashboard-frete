@@ -569,100 +569,7 @@ else:
         )
 
         # ----------------------------------------------------
-        # 1. CARDS DE QUALIDADE DA OPERAÇÃO (SELLER) NA REVERSA
-        # ----------------------------------------------------
-        # Calcula as 4 métricas oficiais com a regra do dia 04 vs dia 05
-        f_exp_rev = df_res_expedicao.copy()
-        f_caf_rev = df_res_caf.copy()
-        if target_seller != "Todos":
-            if 'nome_seller' in f_exp_rev.columns:
-                f_exp_rev = f_exp_rev[f_exp_rev['nome_seller'].astype(str).str.strip().str.upper() == target_str]
-            if 'nome_seller' in f_caf_rev.columns:
-                f_caf_rev = f_caf_rev[f_caf_rev['nome_seller'].astype(str).str.strip().str.upper() == target_str]
-        if modal_selecionado != "GERAL":
-            if 'delivery_type' in f_exp_rev.columns:
-                f_exp_rev = f_exp_rev[f_exp_rev['delivery_type'].astype(str).str.strip().str.upper() == modal_selecionado.upper()]
-            if 'delivery_type' in f_caf_rev.columns:
-                f_caf_rev = f_caf_rev[f_caf_rev['delivery_type'].astype(str).str.strip().str.upper() == modal_selecionado.upper()]
-
-        v_exp, a_exp = calcular_taxas_com_corte(f_exp_rev, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
-        v_caf, a_caf = calcular_taxas_com_corte(f_caf_rev, 'caf', 'qtd', 'mes_ano_compra')
-
-        col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
-        v_dev, a_dev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
-        v_sac, a_sac = calcular_taxas_com_corte(df_filtrado_resumo, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
-
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação (Seller)</h3>", unsafe_allow_html=True)
-        col_q1, col_q2, col_q3, col_q4 = st.columns(4)
-
-        cor_exp = "#10B981" if v_exp >= 95 else "#EF4444"
-        bg_exp = "rgba(16, 185, 129, 0.12)" if v_exp >= 95 else "rgba(244, 63, 94, 0.12)"
-        diag_exp = "Performance excelente. Acima das expectativas." if v_exp > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
-
-        with col_q1:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚚 SLA EXPEDIÇÃO <span style='opacity:0.5;'>(95%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_exp}; margin: 6px 0 2px 0;'>{v_exp:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_exp:.2f}%</div>
-                    <div style='background-color: {bg_exp}; color: {cor_exp}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_exp}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_caf = "#10B981" if v_caf <= 2 else "#EF4444"
-        bg_caf = "rgba(16, 185, 129, 0.12)" if v_caf <= 2 else "rgba(244, 63, 94, 0.12)"
-        diag_caf = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
-
-        with col_q2:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚫 CANCELAMENTO <span style='opacity:0.5;'>(2%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_caf}; margin: 6px 0 2px 0;'>{v_caf:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_caf:.2f}%</div>
-                    <div style='background-color: {bg_caf}; color: {cor_caf}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_caf}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
-        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
-        diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
-
-        with col_q3:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev}; margin: 6px 0 2px 0;'>{v_dev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev:.2f}%</div>
-                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_dev}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_sac = "#10B981" if v_sac <= 5 else "#EF4444"
-        bg_sac = "rgba(16, 185, 129, 0.12)" if v_sac <= 5 else "rgba(244, 63, 94, 0.12)"
-        diag_sac = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
-
-        with col_q4:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac}; margin: 6px 0 2px 0;'>{v_sac:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac:.2f}%</div>
-                    <div style='background-color: {bg_sac}; color: {cor_sac}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_sac}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        st.write("---")
-
-        # ----------------------------------------------------
-        # 2. FILTRO DE VISÃO E PERÍODO (BASE DETALHADA)
+        # 1. FILTRO DE VISÃO E PERÍODO (BASE DETALHADA)
         # ----------------------------------------------------
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
 
@@ -704,24 +611,42 @@ else:
         st.write("")
 
         # ----------------------------------------------------
-        # 3. KPIS DA BASE OPERACIONAL DETALHADA
+        # 2. KPIS PRINCIPAIS (COM O CARD DE DEVOLUÇÃO AO LADO)
         # ----------------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
         qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
 
-        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+        # Cálculo da Taxa de Devolução (Concluída)
+        col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
+        v_dev, a_dev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
+        cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
+        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
+        diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
+
+        col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
         with col_kpi1:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Total Linhas Agrupadas</div><div class='metric-card-value'>{len(df_base_reversa_periodo):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Total Linhas Agrupadas</div><div class='metric-card-value'>{len(df_base_reversa_periodo):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
         with col_kpi2:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Qtd. Remessas Únicas</div><div class='metric-card-value'>{qtd_remessas_unicas:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Qtd. Remessas Únicas</div><div class='metric-card-value'>{qtd_remessas_unicas:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
         with col_kpi3:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
+        with col_kpi4:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 18px 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
+                    <div style='font-size: 36px; font-weight: 900; color: {cor_dev}; margin: 4px 0 2px 0;'>{v_dev:.2f}%</div>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 700; margin-bottom: 12px;'>Ant: {a_dev:.2f}%</div>
+                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; line-height: 1.4; margin-top: auto;'>
+                        {diag_dev}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
         st.write("---")
 
         # ----------------------------------------------------
-        # 4. GRÁFICOS: EVOLUÇÃO MENSAL E TOP SELLERS (HISTÓRICO COMPLETO)
+        # 3. GRÁFICOS: EVOLUÇÃO MENSAL E TOP SELLERS (HISTÓRICO COMPLETO)
         # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
@@ -732,14 +657,13 @@ else:
         with col_graf3:
             st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
             col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
-            col_dev = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
 
             if 'mes_ano_definido' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_resumo_temp = df_filtrado_resumo.copy()
                 
-                if 'qtd_etr' in df_resumo_temp.columns and col_dev in df_resumo_temp.columns:
+                if 'qtd_etr' in df_resumo_temp.columns and col_dev_r in df_resumo_temp.columns:
                     df_resumo_temp['qtd_etr_n'] = pd.to_numeric(df_resumo_temp['qtd_etr'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                    df_resumo_temp['col_dev_n'] = pd.to_numeric(df_resumo_temp[col_dev].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    df_resumo_temp['col_dev_n'] = pd.to_numeric(df_resumo_temp[col_dev_r].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
                     
                     df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False).agg(
                         tot_etr=('qtd_etr_n', 'sum'),
@@ -808,12 +732,12 @@ else:
             st.subheader("⚠️ Top Sellers - Maior % Taxa de Devolução")
             col_taxa_alvo = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
             
-            if 'nome_seller' in df_filtrado_resumo.columns and (col_taxa_alvo in df_filtrado_resumo.columns or ('qtd_etr' in df_filtrado_resumo.columns and col_dev in df_filtrado_resumo.columns)) and not df_filtrado_resumo.empty:
+            if 'nome_seller' in df_filtrado_resumo.columns and (col_taxa_alvo in df_filtrado_resumo.columns or ('qtd_etr' in df_filtrado_resumo.columns and col_dev_r in df_filtrado_resumo.columns)) and not df_filtrado_resumo.empty:
                 df_top_temp = df_filtrado_resumo.copy()
                 
-                if 'qtd_etr' in df_top_temp.columns and col_dev in df_top_temp.columns:
+                if 'qtd_etr' in df_top_temp.columns and col_dev_r in df_top_temp.columns:
                     df_top_temp['qtd_etr_n'] = pd.to_numeric(df_top_temp['qtd_etr'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                    df_top_temp['col_dev_n'] = pd.to_numeric(df_top_temp[col_dev].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    df_top_temp['col_dev_n'] = pd.to_numeric(df_top_temp[col_dev_r].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
                     
                     df_top_agg = df_top_temp.groupby('nome_seller', as_index=False).agg(
                         tot_etr=('qtd_etr_n', 'sum'),
@@ -876,7 +800,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 5. GRÁFICOS: VOLUME MENSAL, MOTIVOS E FAIXAS DE ATRASO
+        # 4. GRÁFICOS: VOLUME MENSAL, MOTIVOS E FAIXAS DE ATRASO
         # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
@@ -1011,7 +935,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 6. JORNADA DO TRACKING SEQUENCIAL
+        # 5. JORNADA DO TRACKING SEQUENCIAL
         # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
@@ -1072,7 +996,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 7. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA
+        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA
         # ----------------------------------------------------
         st.markdown("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8; margin-bottom: 25px;'>
@@ -1085,7 +1009,7 @@ else:
         """, unsafe_allow_html=True)
 
         # ----------------------------------------------------
-        # 8. DOWNLOAD CSV REVERSA
+        # 7. DOWNLOAD CSV REVERSA
         # ----------------------------------------------------
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
@@ -1540,7 +1464,7 @@ else:
 
         st.write("---")
 
-        # 8. MEMORIAL DE CÁLCULO
+        # 8. MEMORIAL DE CÁLCULO - VENDAS
         st.markdown("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8;'>
                 <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
