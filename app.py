@@ -8,14 +8,12 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Desativa avisos desnecessários no terminal
 warnings.filterwarnings("ignore")
 
-# Configuração da página do dashboard
 st.set_page_config(page_title="Dashboard Sellers - Redshift", layout="wide")
 
 # ==========================================
-# 1. CONFIGURAÇÃO E AUTENTICAÇÃO PERSISTENTE (F5 RESISTENTE)
+# 1. CONFIGURAÇÃO E AUTENTICAÇÃO PERSISTENTE
 # ==========================================
 
 TEMPO_EXPIRED_MINUTOS = 10
@@ -23,8 +21,6 @@ TEMPO_EXPIRED_MINUTOS = 10
 SHEET_ID_AUTH = "1WuROB09uYwPUeMaG7fS3CroqPFB9cEXtolcgRoA6erY"
 URL_CSV_GOOGLE_SHEETS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_AUTH}/export?format=csv&gid=0"
 URL_WEBAPP_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyvMmlYokWB2PpkxkewxpNAdGCKQmQ_S13ybz0qmqaCvgS77_HVhBtk-ftXukSCcYGX/exec"
-
-MODAIS_IGNORADOS = ['retail', 'fulfillment']
 
 
 @st.cache_data(ttl=600)
@@ -35,8 +31,7 @@ def carregar_credenciais_google():
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         )
         with urllib.request.urlopen(requisicao) as resposta:
-            conteudo_bytes = resposta.read()
-            conteudo_csv = conteudo_bytes.decode("utf-8")
+            conteudo_csv = resposta.read().decode("utf-8")
 
         df_logins = pd.read_csv(io.StringIO(conteudo_csv))
         df_logins['LOGIN'] = df_logins['LOGIN'].astype(str).str.strip()
@@ -176,7 +171,7 @@ else:
     st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
 
     # ==========================================
-    # CARREGAMENTO DE DADOS: REVERSA E VENDAS (FILTRADO SEM RETAIL/FULFILLMENT)
+    # CARREGAMENTO DE DADOS DE ALTA PERFORMANCE
     # ==========================================
     PLANILHAS_REVERSA_BASE = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},
@@ -204,30 +199,32 @@ else:
             'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
             'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'grupo_aberto_seller'
         ]
+        tipos_otimizados = {
+            'seller_name': 'category',
+            'tipo_processo': 'category',
+            'tracking': 'category',
+            'grupo_aberto_seller': 'category',
+            'mes_ano_solicitacao': 'category',
+            'mes_ano_finalizacao': 'category'
+        }
         for item in PLANILHAS_REVERSA_BASE:
             sheet_id = item["id"]
             gid = item["gid"]
             df_temp = pd.DataFrame()
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-                df_temp = pd.read_csv(url_csv, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                df_temp = pd.read_csv(url_csv, usecols=lambda c: c in colunas_desejadas, dtype=tipos_otimizados, low_memory=False)
             except Exception:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
-                    df_temp = pd.read_csv(url_gviz, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                    df_temp = pd.read_csv(url_gviz, usecols=lambda c: c in colunas_desejadas, dtype=tipos_otimizados, low_memory=False)
                 except Exception:
                     pass
             if not df_temp.empty and len(df_temp.columns) > 1:
                 lista_dfs.append(df_temp)
 
         if lista_dfs:
-            df_final = pd.concat(lista_dfs, ignore_index=True)
-            # Remove Retail e Fulfillment
-            if 'tipo_processo' in df_final.columns:
-                df_final = df_final[~df_final['tipo_processo'].astype(str).str.strip().str.lower().isin(MODAIS_IGNORADOS)]
-            if 'seller_name' in df_final.columns:
-                df_final['seller_name'] = df_final['seller_name'].fillna('N/A').astype(str)
-            return df_final
+            return pd.concat(lista_dfs, ignore_index=True)
         return pd.DataFrame()
 
     @st.cache_data(ttl=1800, show_spinner=False)
@@ -235,8 +232,6 @@ else:
         url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID_RESUMO_REVERSA}/gviz/tq?tqx=out:csv&sheet=RESUMO%20REVERSA"
         try:
             df = pd.read_csv(url_csv, low_memory=False)
-            if 'delivery_type' in df.columns:
-                df = df[~df['delivery_type'].astype(str).str.strip().str.lower().isin(MODAIS_IGNORADOS)]
             if 'nome_seller' in df.columns:
                 df['nome_seller'] = df['nome_seller'].fillna('N/A').astype(str)
             return df
@@ -249,8 +244,6 @@ else:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_VENDAS_PRINCIPAL}/gviz/tq?tqx=out:csv&sheet={nome_encoded}"
         try:
             df = pd.read_csv(url, low_memory=False)
-            if 'delivery_type' in df.columns:
-                df = df[~df['delivery_type'].astype(str).str.strip().str.lower().isin(MODAIS_IGNORADOS)]
             if 'nome_seller' in df.columns:
                 df['nome_seller'] = df['nome_seller'].fillna('N/A').astype(str)
             return df
@@ -260,29 +253,31 @@ else:
     @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_base_vendas():
         lista_dfs = []
+        tipos_vendas = {
+            'nome_seller': 'category',
+            'delivery_type': 'category',
+            'status_pedido': 'category',
+            'grupo_dias_em_atraso': 'category',
+            'tipo': 'category'
+        }
         for item in PLANILHAS_VENDAS_BASE:
             sheet_id = item["id"]
             gid = item["gid"]
             df_temp = pd.DataFrame()
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-                df_temp = pd.read_csv(url_csv, low_memory=False)
+                df_temp = pd.read_csv(url_csv, dtype=tipos_vendas, low_memory=False)
             except Exception:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
-                    df_temp = pd.read_csv(url_gviz, low_memory=False)
+                    df_temp = pd.read_csv(url_gviz, dtype=tipos_vendas, low_memory=False)
                 except Exception:
                     pass
             if not df_temp.empty and len(df_temp.columns) > 1:
                 lista_dfs.append(df_temp)
 
         if lista_dfs:
-            df_final = pd.concat(lista_dfs, ignore_index=True)
-            if 'delivery_type' in df_final.columns:
-                df_final = df_final[~df_final['delivery_type'].astype(str).str.strip().str.lower().isin(MODAIS_IGNORADOS)]
-            if 'nome_seller' in df_final.columns:
-                df_final['nome_seller'] = df_final['nome_seller'].fillna('N/A').astype(str)
-            return df_final
+            return pd.concat(lista_dfs, ignore_index=True)
         return pd.DataFrame()
 
     with st.spinner("⚡ A carregar base operacional otimizada..."):
@@ -306,9 +301,9 @@ else:
     with col_topo_seller:
         st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
         if empresa_usuario.upper() == "DAFITI":
-            s_rev = set(df_raw_reversa['seller_name'].dropna().unique()) if 'seller_name' in df_raw_reversa.columns else set()
-            s_vend = set(df_res_expedicao['nome_seller'].dropna().unique()) if 'nome_seller' in df_res_expedicao.columns else set()
-            sellers_totais = sorted([s for s in (s_rev | s_vend) if s and str(s).lower() not in ['n/a', 'nan', 'none']])
+            s_rev = set(df_raw_reversa['seller_name'].dropna().astype(str).unique()) if 'seller_name' in df_raw_reversa.columns else set()
+            s_vend = set(df_res_expedicao['nome_seller'].dropna().astype(str).unique()) if 'nome_seller' in df_res_expedicao.columns else set()
+            sellers_totais = sorted([s for s in (s_rev | s_vend) if s and s.lower() not in ['n/a', 'nan', 'none']])
             lista_sellers_global = ["Todos"] + sellers_totais
             seller_global_selecionado = st.selectbox("Selecione o Seller", lista_sellers_global, index=0, label_visibility="collapsed")
         else:
@@ -319,7 +314,6 @@ else:
         st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
-    # Estilização CSS
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
         cor_grafico = "#60A5FA"
@@ -377,9 +371,6 @@ else:
             </style>
         """, unsafe_allow_html=True)
 
-    # ==========================================
-    # ABAS PRINCIPAIS
-    # ==========================================
     aba_reversa, aba_vendas = st.tabs([
         "🔄 Operação Reversa", 
         "💰 Vendas"
@@ -389,18 +380,7 @@ else:
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        df_seller_temp_rev = df_raw_reversa
-        if seller_global_selecionado != "Todos":
-            df_seller_temp_rev = df_raw_reversa[df_raw_reversa['seller_name'].str.strip().str.upper() == str(seller_global_selecionado).strip().upper()]
-
-        modais_existentes_rev = ["GERAL"]
-        if 'tipo_processo' in df_seller_temp_rev.columns and not df_seller_temp_rev.empty:
-            modais_unicos = df_seller_temp_rev['tipo_processo'].dropna().astype(str).str.strip().unique()
-            mapa_modais_limpos = {"dafiti envios": "Dafiti Envios", "milkrun": "Milkrun", "dropshipping": "Dropshipping"}
-            for m in modais_unicos:
-                m_limpo = mapa_modais_limpos.get(m.lower(), m.title())
-                if m_limpo not in modais_existentes_rev and m.lower() not in MODAIS_IGNORADOS:
-                    modais_existentes_rev.append(m_limpo)
+        modais_existentes_rev = ["GERAL", "Dafiti Envios", "Milkrun", "Dropshipping"]
 
         col_modal_rev, col_espaco_rev = st.columns([2, 4])
         with col_modal_rev:
@@ -431,8 +411,12 @@ else:
 
         data_hora_reversa = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
-            d_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
-            data_hora_reversa = d_max.strftime('%d/%m/%Y às %H:%M:%S')
+            val_max = df_raw_reversa['ultima_atualizacao_tabela'].dropna().max()
+            if pd.notnull(val_max) and str(val_max).strip() != "":
+                try:
+                    data_hora_reversa = pd.to_datetime(str(val_max)).strftime('%d/%m/%Y às %H:%M:%S')
+                except Exception:
+                    data_hora_reversa = str(val_max)
 
         st.markdown(f"""
             <div class='header-container-unificado'>
@@ -512,20 +496,10 @@ else:
             st.download_button(label="📥 Descarregar Relatório Reversa (.csv)", data=dados_csv_rev, file_name=nome_arquivo_rev, mime="text/csv", use_container_width=True)
 
     # ==========================================
-    # ABA: VENDAS (SEM RETAIL E FULFILLMENT)
+    # ABA: VENDAS
     # ==========================================
     with aba_vendas:
-        df_seller_temp_vendas = df_raw_vendas_base
-        if seller_global_selecionado != "Todos":
-            df_seller_temp_vendas = df_raw_vendas_base[df_raw_vendas_base['nome_seller'].str.strip().str.upper() == str(seller_global_selecionado).strip().upper()]
-
-        modais_existentes_vendas = ["GERAL"]
-        if 'delivery_type' in df_seller_temp_vendas.columns and not df_seller_temp_vendas.empty:
-            modais_vendas = df_seller_temp_vendas['delivery_type'].dropna().astype(str).str.strip().unique()
-            for m in modais_vendas:
-                m_limpo = m.upper()
-                if m_limpo not in modais_existentes_vendas and m.lower() not in MODAIS_IGNORADOS:
-                    modais_existentes_vendas.append(m_limpo)
+        modais_existentes_vendas = ["GERAL", "DAFITI ENVIOS", "MILKRUN", "DROPSHIPPING"]
 
         col_modal_vend, col_espaco_vend = st.columns([2, 4])
         with col_modal_vend:
@@ -556,8 +530,12 @@ else:
 
         data_hora_vendas = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_vendas_base.columns and not df_raw_vendas_base.empty:
-            d_max_v = pd.to_datetime(df_raw_vendas_base['ultima_atualizacao_tabela']).max()
-            data_hora_vendas = d_max_v.strftime('%d/%m/%Y às %H:%M:%S')
+            val_max_v = df_raw_vendas_base['ultima_atualizacao_tabela'].dropna().max()
+            if pd.notnull(val_max_v) and str(val_max_v).strip() != "":
+                try:
+                    data_hora_vendas = pd.to_datetime(str(val_max_v)).strftime('%d/%m/%Y às %H:%M:%S')
+                except Exception:
+                    data_hora_vendas = str(val_max_v)
 
         st.markdown(f"""
             <div class='header-container-unificado'>
@@ -566,7 +544,6 @@ else:
             </div>
         """, unsafe_allow_html=True)
 
-        # KPIs Vendas
         tot_exp_prazo = f_expedicao['expedicao_no_prazo'].sum() if 'expedicao_no_prazo' in f_expedicao.columns else 0
         tot_exp_pedidos = f_expedicao['total'].sum() if 'total' in f_expedicao.columns else 0
         taxa_exp_geral = (tot_exp_prazo / tot_exp_pedidos * 100) if tot_exp_pedidos > 0 else 0.0
