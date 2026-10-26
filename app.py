@@ -374,7 +374,9 @@ else:
         st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
-    # ESTILIZAÇÃO CSS
+    # ==========================================
+    # ESTILIZAÇÃO CSS (ABAS MODERNAS SEPARADAS)
+    # ==========================================
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
         cor_grafico = "#60A5FA"
@@ -401,8 +403,38 @@ else:
                 }
                 [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
 
-                .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #D1D5DB !important; }
-                .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
+                /* CONTAINER DAS ABAS (TABS LIST) */
+                div[data-baseweb="tab-list"] {
+                    gap: 3.5rem !important;
+                    background-color: transparent !important;
+                    border-bottom: 1px solid #1E293B !important;
+                    padding-bottom: 2px !important;
+                    margin-bottom: 25px !important;
+                }
+
+                /* ESTILO GERAL DAS ABAS */
+                div[data-baseweb="tab-list"] button[data-baseweb="tab"] {
+                    font-size: 19px !important;
+                    font-weight: 700 !important;
+                    color: #64748B !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    padding: 8px 12px 14px 12px !important;
+                    border-bottom: 3.5px solid transparent !important;
+                    transition: all 0.2s ease-in-out !important;
+                }
+
+                /* HOVER NA ABA */
+                div[data-baseweb="tab-list"] button[data-baseweb="tab"]:hover {
+                    color: #CBD5E1 !important;
+                }
+
+                /* ABA SELECIONADA (PADRÃO PRINT) */
+                div[data-baseweb="tab-list"] button[aria-selected="true"] {
+                    color: #FFFFFF !important;
+                    font-weight: 900 !important;
+                    border-bottom: 3.5px solid #3B82F6 !important;
+                }
 
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
                     color: #FFFFFF !important;
@@ -460,8 +492,36 @@ else:
                 }
                 [data-testid="stSidebar"] * { color: #0F172A !important; }
 
-                .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
-                .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
+                /* CONTAINER DAS ABAS (TABS LIST) */
+                div[data-baseweb="tab-list"] {
+                    gap: 3.5rem !important;
+                    background-color: transparent !important;
+                    border-bottom: 1px solid #E2E8F0 !important;
+                    padding-bottom: 2px !important;
+                    margin-bottom: 25px !important;
+                }
+
+                div[data-baseweb="tab-list"] button[data-baseweb="tab"] {
+                    font-size: 19px !important;
+                    font-weight: 700 !important;
+                    color: #94A3B8 !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    padding: 8px 12px 14px 12px !important;
+                    border-bottom: 3.5px solid transparent !important;
+                    transition: all 0.2s ease-in-out !important;
+                }
+
+                div[data-baseweb="tab-list"] button[data-baseweb="tab"]:hover {
+                    color: #475569 !important;
+                }
+
+                div[data-baseweb="tab-list"] button[aria-selected="true"] {
+                    color: #0F172A !important;
+                    font-weight: 900 !important;
+                    border-bottom: 3.5px solid #2563EB !important;
+                }
+
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
                 
                 .header-container-unificado {
@@ -1407,7 +1467,6 @@ else:
             with col_sva_graf:
                 st.subheader("Histórico de Tentativas (SVA)")
                 
-                # Procura a base operacional que contém 'qtd_sva' e 'doc_dft'
                 df_sva_fonte = f_base_vendas if (not f_base_vendas.empty and 'qtd_sva' in f_base_vendas.columns) else f_sva
                 
                 if not df_sva_fonte.empty:
@@ -1426,13 +1485,11 @@ else:
                             break
 
                     if col_sva_key:
-                        # Extrai o número da tentativa (1, 2, 3, etc.)
                         df_sva_calc['sva_num'] = pd.to_numeric(
                             df_sva_calc[col_sva_key].astype(str).str.extract(r'(\d+)')[0],
                             errors='coerce'
                         ).dropna().astype(int)
 
-                        # Filtra apenas tentativas válidas (> 0)
                         df_sva_calc = df_sva_calc[df_sva_calc['sva_num'] > 0]
 
                         if col_doc_key:
@@ -1442,7 +1499,6 @@ else:
                             df_sva_group = df_sva_calc.groupby('sva_num', as_index=False).size()
                             df_sva_group.rename(columns={'size': 'contagem_doc_dft'}, inplace=True)
 
-                        # Ordena de forma crescente pelas tentativas (1, 2, 3, 4, 5, 6, 10...)
                         df_sva_group = df_sva_group.sort_values('sva_num')
                         df_sva_group['sva_eixo_x'] = df_sva_group['sva_num'].astype(str)
 
