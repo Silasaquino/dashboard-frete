@@ -159,6 +159,29 @@ def converter_df_para_csv(df):
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
 
 
+# Lógica de virada de mês (Corte: até dia 04 = mês passado, dia 05 em diante = mês atual)
+def obter_meses_referencia():
+    hoje = datetime.now()
+    if hoje.day <= 4:
+        # Até dia 04: dados do mês passado
+        dt_ref = hoje.replace(day=1) - timedelta(days=1)
+        dt_ant = dt_ref.replace(day=1) - timedelta(days=1)
+    else:
+        # A partir do dia 05: dados do mês corrente
+        dt_ref = hoje
+        dt_ant = hoje.replace(day=1) - timedelta(days=1)
+
+    mes_atual_iso = dt_ref.strftime('%Y-%m')
+    mes_ant_iso = dt_ant.strftime('%Y-%m')
+    
+    meses_pt = [
+        "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+        "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+    ]
+    texto_ref = f"{meses_pt[dt_ref.month - 1]}/{dt_ref.year}"
+    return mes_atual_iso, mes_ant_iso, texto_ref
+
+
 esta_autenticado = validar_e_restaurar_sessao()
 
 
@@ -182,6 +205,7 @@ if not esta_autenticado:
 # ==========================================
 else:
     empresa_usuario = st.session_state.get("empresa_logada", "").strip()
+    mes_atual_iso, mes_ant_iso, texto_mes_ref = obter_meses_referencia()
 
     st.sidebar.title("Perfil")
     st.sidebar.write(f"👤 **Utilizador:** {st.session_state.get('usuario_logado', '')}")
@@ -189,7 +213,7 @@ else:
     st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
 
     # ==========================================
-    # CARREGAMENTO CONSOLIDADO REVERSA (ORIGINAL DE SEXTA)
+    # CARREGAMENTO CONSOLIDADO REVERSA
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},
@@ -248,17 +272,6 @@ else:
             st.error(f"Erro ao carregar dados da folha 'RESUMO REVERSA': {e}")
             return pd.DataFrame()
 
-    @st.cache_data(ttl=1800, show_spinner=False)
-    def extrair_lista_sellers(df_base):
-        if 'seller_name' in df_base.columns:
-            s_validos = sorted([str(s) for s in df_base['seller_name'].unique() if s and str(s).lower() not in ['n/a', 'nan', 'none']])
-            return ["Todos"] + s_validos
-        return ["Todos"]
-
-    with st.spinner("⚡ A otimizar e carregar base consolidada na memória..."):
-        df_raw_reversa = carregar_dados_reversa_consolidados()
-        df_raw_resumo = carregar_dados_resumo()
-
     # ==========================================
     # CARREGAMENTO DO MÓDULO DE VENDAS
     # ==========================================
@@ -309,17 +322,193 @@ else:
             return df_final
         return pd.DataFrame()
 
-    df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
-    df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
-    df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
-    df_res_prejudicado = carregar_aba_vendas_resumo("RESUMO_PREJUDICADO")
-    df_res_sva = carregar_aba_vendas_resumo("RESUMO_SVA")
-    df_res_tracking = carregar_aba_vendas_resumo("RESUMO_TRACKING")
-    df_res_status_loja = carregar_aba_vendas_resumo("RESUMO_STATUS_LOJA")
-    df_raw_vendas_base = carregar_base_vendas()
+    with st.spinner("⚡ A carregar base operacional na memória..."):
+        df_raw_reversa = carregar_dados_reversa_consolidados()
+        df_raw_resumo = carregar_dados_resumo()
+
+        df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
+        df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
+        df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
+        df_res_prejudicado = carregar_aba_vendas_resumo("RESUMO_PREJUDICADO")
+        df_res_sva = carregar_aba_vendas_resumo("RESUMO_SVA")
+        df_res_tracking = carregar_aba_vendas_resumo("RESUMO_TRACKING")
+        df_res_status_loja = carregar_aba_vendas_resumo("RESUMO_STATUS_LOJA")
+        df_raw_vendas_base = carregar_base_vendas()
 
     # ==========================================
-    # ABAS SUPERIORES DE NAVEGAÇÃO
+    # SELEÇÃO SUPERIOR UNIFICADA (SELLER, MODAL E TEMA)
+    # ==========================================
+    col_modal_topo, col_seller_topo, col_tema_topo = st.columns([2, 2.5, 1.5])
+
+    # 1. SELEÇÃO DE SELLER
+    with col_seller_topo:
+        st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
+        if empresa_usuario.upper() == "DAFITI":
+            sellers_rev = set(df_raw_reversa['seller_name'].dropna().unique()) if 'seller_name' in df_raw_reversa.columns else set()
+            sellers_vend = set(df_res_expedicao['nome_seller'].dropna().unique()) if 'nome_seller' in df_res_expedicao.columns else set()
+            sellers_totais = sorted([str(s) for s in (sellers_rev | sellers_vend) if s and str(s).lower() not in ['n/a', 'nan', 'none']])
+            lista_sellers_global = ["Todos"] + sellers_totais
+            seller_selecionado = st.selectbox("Selecione o Seller", lista_sellers_global, index=0, label_visibility="collapsed")
+        else:
+            st.markdown(f"<div style='background-color:#1E293B; padding:8px 12px; border-radius:6px; font-weight:700; color:#60A5FA; font-size:14px;'>🏢 {empresa_usuario}</div>", unsafe_allow_html=True)
+            seller_selecionado = empresa_usuario
+
+    # 2. SELEÇÃO DE MODAL
+    df_seller_temp = df_raw_reversa
+    if seller_selecionado != "Todos":
+        df_seller_temp = df_raw_reversa[df_raw_reversa['seller_name'].str.strip().str.upper() == str(seller_selecionado).strip().upper()]
+
+    modais_existentes = ["GERAL"]
+    if 'tipo_processo' in df_seller_temp.columns and not df_seller_temp.empty:
+        modais_unicos = df_seller_temp['tipo_processo'].dropna().astype(str).str.strip().unique()
+        mapa_modais_limpos = {
+            "dafiti envios": "Dafiti Envios",
+            "milkrun": "Milkrun",
+            "dropshipping": "Dropshipping",
+            "fulfillment": "Fulfillment",
+            "retail": "Retail"
+        }
+        for m in modais_unicos:
+            m_limpo = mapa_modais_limpos.get(m.lower(), m.title())
+            if m_limpo not in modais_existentes:
+                modais_existentes.append(m_limpo)
+
+    with col_modal_topo:
+        st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO</span>", unsafe_allow_html=True)
+        modal_selecionado = st.selectbox("Modal Analisado", modais_existentes, index=0, label_visibility="collapsed")
+
+    # 3. TEMA DA TELA
+    with col_tema_topo:
+        st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
+        tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
+
+    # ESTILIZAÇÃO CSS
+    if tema_selecionado == "Escuro 🌙":
+        template_plotly = "plotly_dark"
+        cor_grafico = "#60A5FA"
+        st.markdown("""
+            <style>
+                header[data-testid="stHeader"] { background-color: #0B0F19 !important; }
+                .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
+
+                [data-testid="stSidebar"] {
+                    background-color: #111827 !important;
+                    border-right: 1px solid #1F2937 !important;
+                }
+                [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
+                    color: #F3F4F6 !important;
+                    font-weight: 700 !important;
+                }
+
+                [data-testid="stSidebar"] button {
+                    background-color: #374151 !important;
+                    color: #FFFFFF !important;
+                    border: 1px solid #4B5563 !important;
+                    font-weight: 800 !important;
+                    border-radius: 6px !important;
+                }
+                [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
+
+                .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #D1D5DB !important; }
+                .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
+
+                div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
+                    color: #FFFFFF !important;
+                    font-weight: 700 !important;
+                }
+                
+                .header-container-unificado {
+                    background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
+                    border-left: 6px solid #60A5FA !important;
+                    padding: 14px 24px;
+                    border-radius: 8px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                }
+                .header-titulo { font-size: 20px; font-weight: 800; color: #FFFFFF !important; }
+                .header-atualizacao { font-size: 14px; font-weight: 700; color: #94A3B8 !important; }
+
+                .metric-card {
+                    background-color: #1E293B !important;
+                    border: 1px solid #334155 !important;
+                    border-radius: 10px;
+                    padding: 18px 20px;
+                    text-align: center;
+                }
+                .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
+                .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
+
+                div[data-testid="stDownloadButton"] button {
+                    background-color: #EF4444 !important;
+                    color: #FFFFFF !important;
+                    border: none !important;
+                    font-weight: 900 !important;
+                    font-size: 16px !important;
+                    border-radius: 8px !important;
+                    padding: 0.8rem 1.5rem !important;
+                    width: 100% !important;
+                }
+                div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
+            </style>
+        """, unsafe_allow_html=True)
+    else:
+        template_plotly = "plotly_white"
+        cor_grafico = "#2563EB"
+        st.markdown("""
+            <style>
+                header[data-testid="stHeader"] { background-color: #FFFFFF !important; }
+                .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
+                
+                [data-testid="stSidebar"] {
+                    background-color: #F8FAFC !important;
+                    border-right: 1px solid #E2E8F0 !important;
+                }
+                [data-testid="stSidebar"] * { color: #0F172A !important; }
+
+                .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
+                .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
+                div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
+                
+                .header-container-unificado {
+                    background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
+                    border-left: 6px solid #2563EB !important;
+                    padding: 14px 24px;
+                    border-radius: 8px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                }
+                .header-titulo { font-size: 20px; font-weight: 800; color: #0F172A !important; }
+                .header-atualizacao { font-size: 14px; font-weight: 700; color: #475569 !important; }
+
+                .metric-card {
+                    background-color: #F8FAFC !important;
+                    border: 1px solid #E2E8F0 !important;
+                    border-radius: 10px;
+                    padding: 18px 20px;
+                    text-align: center;
+                }
+                .metric-card-label { font-size: 13px; color: #475569 !important; font-weight: 700; margin-bottom: 6px; }
+                .metric-card-value { font-size: 26px; font-weight: 900; color: #0F172A !important; }
+
+                div[data-testid="stDownloadButton"] button {
+                    background-color: #2563EB !important;
+                    color: #FFFFFF !important;
+                    font-weight: 900 !important;
+                    font-size: 16px !important;
+                    border-radius: 8px !important;
+                    padding: 0.8rem 1.5rem !important;
+                    width: 100% !important;
+                }
+                div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
+            </style>
+        """, unsafe_allow_html=True)
+
+    # ==========================================
+    # ABAS PRINCIPAIS DE NAVEGAÇÃO
     # ==========================================
     aba_reversa, aba_vendas = st.tabs([
         "🔄 Operação Reversa", 
@@ -327,191 +516,12 @@ else:
     ])
 
     # ==========================================
-    # ABA: OPERAÇÃO REVERSA (100% IDÊNTICA AO CÓDIGO DE SEXTA)
+    # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
-        col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
-
-        with col_seller:
-            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
-            if empresa_usuario.upper() == "DAFITI":
-                lista_sellers = extrair_lista_sellers(df_raw_reversa)
-                seller_selecionado = st.selectbox(
-                    "Selecione o Seller",
-                    lista_sellers,
-                    index=0,
-                    label_visibility="collapsed"
-                )
-            else:
-                st.markdown(f"<div style='background-color:#1E293B; padding:8px 12px; border-radius:6px; font-weight:700; color:#60A5FA; font-size:14px;'>🏢 {empresa_usuario}</div>", unsafe_allow_html=True)
-                seller_selecionado = empresa_usuario
-
-        df_seller_temp = df_raw_reversa
-        if seller_selecionado != "Todos":
-            df_seller_temp = df_raw_reversa[df_raw_reversa['seller_name'].str.strip().str.upper() == str(seller_selecionado).strip().upper()]
-
-        modais_existentes = ["GERAL"]
-        if 'tipo_processo' in df_seller_temp.columns and not df_seller_temp.empty:
-            modais_unicos = df_seller_temp['tipo_processo'].dropna().astype(str).str.strip().unique()
-            mapa_modais_limpos = {
-                "dafiti envios": "Dafiti Envios",
-                "milkrun": "Milkrun",
-                "dropshipping": "Dropshipping",
-                "fulfillment": "Fulfillment",
-                "retail": "Retail"
-            }
-            for m in modais_unicos:
-                m_limpo = mapa_modais_limpos.get(m.lower(), m.title())
-                if m_limpo not in modais_existentes:
-                    modais_existentes.append(m_limpo)
-
-        with col_modal:
-            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO</span>", unsafe_allow_html=True)
-            modal_selecionado = st.selectbox(
-                "Modal Analisado",
-                modais_existentes,
-                index=0,
-                label_visibility="collapsed"
-            )
-
-        with col_tema:
-            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
-            tema_selecionado = st.selectbox(
-                "Tema do Dashboard",
-                ["Escuro 🌙", "Claro ☀️"],
-                index=0,
-                label_visibility="collapsed"
-            )
-
-        # ESTILIZAÇÃO CSS
-        if tema_selecionado == "Escuro 🌙":
-            template_plotly = "plotly_dark"
-            cor_grafico = "#60A5FA"
-            st.markdown("""
-                <style>
-                    header[data-testid="stHeader"] { background-color: #0B0F19 !important; }
-                    .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
-
-                    [data-testid="stSidebar"] {
-                        background-color: #111827 !important;
-                        border-right: 1px solid #1F2937 !important;
-                    }
-                    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
-                        color: #F3F4F6 !important;
-                        font-weight: 700 !important;
-                    }
-
-                    [data-testid="stSidebar"] button {
-                        background-color: #374151 !important;
-                        color: #FFFFFF !important;
-                        border: 1px solid #4B5563 !important;
-                        font-weight: 800 !important;
-                        border-radius: 6px !important;
-                    }
-                    [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
-
-                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #D1D5DB !important; }
-                    .stTabs [aria-selected="true"] { color: #60A5FA !important; border-bottom-color: #60A5FA !important; }
-
-                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
-                        color: #FFFFFF !important;
-                        font-weight: 700 !important;
-                    }
-                    
-                    .header-container-unificado {
-                        background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%) !important;
-                        border-left: 6px solid #60A5FA !important;
-                        padding: 14px 24px;
-                        border-radius: 8px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 20px;
-                    }
-                    .header-titulo { font-size: 20px; font-weight: 800; color: #FFFFFF !important; }
-                    .header-atualizacao { font-size: 14px; font-weight: 700; color: #94A3B8 !important; }
-
-                    .metric-card {
-                        background-color: #1E293B !important;
-                        border: 1px solid #334155 !important;
-                        border-radius: 10px;
-                        padding: 18px 20px;
-                        text-align: center;
-                    }
-                    .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
-
-                    div[data-testid="stDownloadButton"] button {
-                        background-color: #EF4444 !important;
-                        color: #FFFFFF !important;
-                        border: none !important;
-                        font-weight: 900 !important;
-                        font-size: 16px !important;
-                        border-radius: 8px !important;
-                        padding: 0.8rem 1.5rem !important;
-                        width: 100% !important;
-                    }
-                    div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
-                </style>
-            """, unsafe_allow_html=True)
-        else:
-            template_plotly = "plotly_white"
-            cor_grafico = "#2563EB"
-            st.markdown("""
-                <style>
-                    header[data-testid="stHeader"] { background-color: #FFFFFF !important; }
-                    .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
-                    
-                    [data-testid="stSidebar"] {
-                        background-color: #F8FAFC !important;
-                        border-right: 1px solid #E2E8F0 !important;
-                    }
-                    [data-testid="stSidebar"] * { color: #0F172A !important; }
-
-                    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: 800 !important; color: #64748B !important; }
-                    .stTabs [aria-selected="true"] { color: #2563EB !important; border-bottom-color: #2563EB !important; }
-                    div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
-                    
-                    .header-container-unificado {
-                        background: linear-gradient(90deg, #F1F5F9 0%, #FFFFFF 100%) !important;
-                        border-left: 6px solid #2563EB !important;
-                        padding: 14px 24px;
-                        border-radius: 8px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 20px;
-                    }
-                    .header-titulo { font-size: 20px; font-weight: 800; color: #0F172A !important; }
-                    .header-atualizacao { font-size: 14px; font-weight: 700; color: #475569 !important; }
-
-                    .metric-card {
-                        background-color: #F8FAFC !important;
-                        border: 1px solid #E2E8F0 !important;
-                        border-radius: 10px;
-                        padding: 18px 20px;
-                        text-align: center;
-                    }
-                    .metric-card-label { font-size: 13px; color: #475569 !important; font-weight: 700; margin-bottom: 6px; }
-                    .metric-card-value { font-size: 26px; font-weight: 900; color: #0F172A !important; }
-
-                    div[data-testid="stDownloadButton"] button {
-                        background-color: #2563EB !important;
-                        color: #FFFFFF !important;
-                        font-weight: 900 !important;
-                        font-size: 16px !important;
-                        border-radius: 8px !important;
-                        padding: 0.8rem 1.5rem !important;
-                        width: 100% !important;
-                    }
-                    div[data-testid="stDownloadButton"] button p { color: #FFFFFF !important; font-weight: 900 !important; }
-                </style>
-            """, unsafe_allow_html=True)
-
         mask_reversa = pd.Series(True, index=df_raw_reversa.index)
         mask_resumo = pd.Series(True, index=df_raw_resumo.index)
 
-        # 1. Filtro por Seller
         target_seller = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
         if target_seller != "Todos":
             target_str = str(target_seller).strip().upper()
@@ -520,7 +530,6 @@ else:
             if 'nome_seller' in df_raw_resumo.columns:
                 mask_resumo &= (df_raw_resumo['nome_seller'].astype(str).str.strip().str.upper() == target_str)
 
-        # 2. Filtro por Modal
         if modal_selecionado != "GERAL":
             mapeamento_modalidades = {
                 "Dafiti Envios": ["dafiti envios", "dafiti_envios"],
@@ -539,7 +548,6 @@ else:
         df_filtrado_reversa = df_raw_reversa[mask_reversa]
         df_filtrado_resumo = df_raw_resumo[mask_resumo]
 
-        # BARRA DE TÍTULO UNIFICADA
         data_hora_formatada = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_reversa.columns and not df_raw_reversa.empty:
             data_max = pd.to_datetime(df_raw_reversa['ultima_atualizacao_tabela']).max()
@@ -591,7 +599,6 @@ else:
 
         st.write("")
 
-        # KPIS
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
         
@@ -612,16 +619,12 @@ else:
         st.write("")
         st.write("---")
 
-        # ==========================================
-        # BLOCO 1: GRÁFICOS DE RESUMO
-        # ==========================================
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
 
         col_graf3, col_graf4 = st.columns(2)
         META_TAXA_SELLER = 0.09
 
-        # GRÁFICO 1: EVOLUÇÃO MENSAL
         with col_graf3:
             st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
             col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
@@ -682,7 +685,6 @@ else:
             else:
                 st.info("Sem dados de resumo registrados para o Seller selecionado no período.")
 
-        # GRÁFICO 2: TOP SELLERS EM ABERTO
         with col_graf4:
             st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
             if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
@@ -729,13 +731,9 @@ else:
 
         st.write("---")
 
-        # ==========================================
-        # BLOCO 2: GRÁFICOS DETALHADOS
-        # ==========================================
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
 
-        # GRÁFICO 3: VOLUME MENSAL DE REMESSAS
         st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
         col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
         
@@ -775,7 +773,6 @@ else:
         st.write("")
         col_graf_mot, col_graf_grupo = st.columns(2)
 
-        # GRÁFICO 4: MOTIVOS DE TROCA
         with col_graf_mot:
             st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -811,7 +808,6 @@ else:
                 )
                 st.plotly_chart(fig_motivos, use_container_width=True)
 
-        # GRÁFICO 5: FAIXAS DE ATRASO NO SELLER (+5 DIAS)
         with col_graf_grupo:
             st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
             if 'tracking' in df_filtrado_reversa.columns and 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
@@ -865,7 +861,6 @@ else:
         st.write("")
         st.write("---")
 
-        # GRÁFICO 6: JORNADA DO TRACKING
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
             df_tracking = df_filtrado_reversa['tracking'].value_counts().reset_index()
@@ -924,7 +919,6 @@ else:
 
         st.write("---")
 
-        # ÁREA DE DOWNLOAD DO CSV
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv = converter_df_para_csv(df_filtrado_reversa)
@@ -938,16 +932,9 @@ else:
             )
 
     # ==========================================
-    # ABA: VENDAS (BOLETIM INDIVIDUAL - REACT PULSE)
+    # ABA: VENDAS (BOLETIM INDIVIDUAL)
     # ==========================================
     with aba_vendas:
-        # Seletor de Modal específico para Vendas
-        col_v_modal, col_v_esp = st.columns([2, 4])
-        modais_vendas = ["GERAL", "DAFITI ENVIOS", "MILKRUN", "DROPSHIPPING"]
-        with col_v_modal:
-            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO (VENDAS)</span>", unsafe_allow_html=True)
-            modal_vendas_sel = st.selectbox("Modal Vendas", modais_vendas, index=0, key="sb_vendas_modal", label_visibility="collapsed")
-
         target_seller_v = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
         target_str_v = str(target_seller_v).strip().upper()
 
@@ -957,8 +944,8 @@ else:
             df_out = df_input.copy()
             if target_seller_v != "Todos" and 'nome_seller' in df_out.columns:
                 df_out = df_out[df_out['nome_seller'].astype(str).str.strip().str.upper() == target_str_v]
-            if modal_vendas_sel != "GERAL" and 'delivery_type' in df_out.columns:
-                df_out = df_out[df_out['delivery_type'].astype(str).str.strip().str.upper() == modal_vendas_sel]
+            if modal_selecionado != "GERAL" and 'delivery_type' in df_out.columns:
+                df_out = df_out[df_out['delivery_type'].astype(str).str.strip().str.upper() == modal_selecionado.upper()]
             return df_out
 
         f_expedicao = filtrar_vendas(df_res_expedicao)
@@ -979,7 +966,7 @@ else:
             f"""
             <div class='header-container-unificado'>
                 <div class='header-titulo'>💰 Visão Geral de Vendas e Expedição</div>
-                <div class='header-atualizacao'>🔄 Última Atualização: <b>{data_hora_vendas}</b></div>
+                <div class='header-atualizacao'>🗓️ Ref: <b>{texto_mes_ref}</b> &nbsp;|&nbsp; 🔄 Atualizado: <b>{data_hora_vendas}</b></div>
             </div>
             """, 
             unsafe_allow_html=True
@@ -1014,47 +1001,43 @@ else:
             </div>
         """, unsafe_allow_html=True)
 
-        # 2. CÁLCULO DAS 4 TAXAS DE QUALIDADE (ATUAL VS ANTERIOR)
-        def calcular_taxa_vendas(df, col_num, col_den):
-            if df.empty or col_num not in df.columns or col_den not in df.columns:
+        # 2. CÁLCULO DAS TAXAS BASEADO NA REGRA DE CORTE (DIA 04 vs DIA 05)
+        def calcular_taxas_com_corte(df, col_num, col_den, col_data):
+            if df.empty or col_num not in df.columns or col_den not in df.columns or col_data not in df.columns:
                 return 0.0, 0.0
             
-            # Ordenar meses para pegar atual e anterior
-            col_m = 'mes_ano_definido' if 'mes_ano_definido' in df.columns else ('mes_ano_compra' if 'mes_ano_compra' in df.columns else None)
-            df_calc = df.copy()
-            df_calc['num'] = pd.to_numeric(df_calc[col_num].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-            df_calc['den'] = pd.to_numeric(df_calc[col_den].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-            
-            if col_m and col_m in df_calc.columns:
-                meses = sorted(df_calc[col_m].dropna().astype(str).unique())
-                m_atual = meses[-1] if len(meses) >= 1 else None
-                m_ant = meses[-2] if len(meses) >= 2 else None
-                
-                df_at = df_calc[df_calc[col_m].astype(str) == m_atual] if m_atual else df_calc
-                df_an = df_calc[df_calc[col_m].astype(str) == m_ant] if m_ant else pd.DataFrame()
-                
-                t_atual = (df_at['num'].sum() / df_at['den'].sum() * 100) if df_at['den'].sum() > 0 else 0.0
-                t_ant = (df_an['num'].sum() / df_an['den'].sum() * 100) if not df_an.empty and df_an['den'].sum() > 0 else 0.0
-                return t_atual, t_ant
-            else:
-                tot_num = df_calc['num'].sum()
-                tot_den = df_calc['den'].sum()
-                return (tot_num / tot_den * 100) if tot_den > 0 else 0.0, 0.0
+            df_c = df.copy()
+            df_c['num'] = pd.to_numeric(df_c[col_num].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            df_c['den'] = pd.to_numeric(df_c[col_den].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            df_c['mes_iso'] = df_c[col_data].astype(str).str.strip().str.slice(0, 7)
 
-        v_exp, a_exp = calcular_taxa_vendas(f_expedicao, 'expedicao_no_prazo', 'total')
-        v_caf, a_caf = calcular_taxa_vendas(f_caf, 'caf', 'qtd')
-        
-        # Devolução e SAC vêm da Reversa/Resumo Reversa
-        df_rev_calc = df_filtrado_resumo
-        col_dev_r = 'devolvido' if 'devolvido' in df_rev_calc.columns else 'devolvido_seller'
-        v_dev, a_dev = calcular_taxa_vendas(df_rev_calc, col_dev_r, 'qtd_etr') if 'qtd_etr' in df_rev_calc.columns else (0.0, 0.0)
-        v_sac, a_sac = calcular_taxa_vendas(df_rev_calc, 'devolucao_sac', 'qtd_etr') if 'devolucao_sac' in df_rev_calc.columns else (0.0, 0.0)
+            df_atual = df_c[df_c['mes_iso'] == mes_atual_iso]
+            df_ant = df_c[df_c['mes_iso'] == mes_ant_iso]
 
-        # 3. CARDS DE QUALIDADE DA OPERAÇÃO (EXATOS DO REACT)
+            # Se não houver dados exatos com o filtro ISO, recai sobre os 2 meses mais recentes
+            if df_atual.empty and not df_c.empty:
+                meses_disp = sorted([m for m in df_c['mes_iso'].unique() if len(m) >= 4])
+                if len(meses_disp) >= 1:
+                    df_atual = df_c[df_c['mes_iso'] == meses_disp[-1]]
+                if len(meses_disp) >= 2:
+                    df_ant = df_c[df_c['mes_iso'] == meses_disp[-2]]
+
+            t_atual = (df_atual['num'].sum() / df_atual['den'].sum() * 100) if df_atual['den'].sum() > 0 else 0.0
+            t_ant = (df_ant['num'].sum() / df_ant['den'].sum() * 100) if not df_ant.empty and df_ant['den'].sum() > 0 else 0.0
+            return t_atual, t_ant
+
+        v_exp, a_exp = calcular_taxas_com_corte(f_expedicao, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
+        v_caf, a_caf = calcular_taxas_com_corte(f_caf, 'caf', 'qtd', 'mes_ano_compra')
+
+        df_rev_res = df_filtrado_resumo
+        col_dev_r = 'devolvido' if 'devolvido' in df_rev_res.columns else 'devolvido_seller'
+        v_dev, a_dev = calcular_taxas_com_corte(df_rev_res, col_dev_r, 'qtd_etr', 'mes_ano_definido')
+        v_sac, a_sac = calcular_taxas_com_corte(df_rev_res, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
+
+        # 3. CARDS DE QUALIDADE DA OPERAÇÃO
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação (Seller)</h3>", unsafe_allow_html=True)
         col_q1, col_q2, col_q3, col_q4 = st.columns(4)
 
-        # SLA Expedição (Meta 95%)
         cor_exp = "#10B981" if v_exp >= 95 else "#EF4444"
         bg_exp = "rgba(16, 185, 129, 0.12)" if v_exp >= 95 else "rgba(244, 63, 94, 0.12)"
         diag_exp = "Performance excelente. Acima das expectativas." if v_exp > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
@@ -1071,7 +1054,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Cancelamento CAF (Meta 2%)
         cor_caf = "#10B981" if v_caf <= 2 else "#EF4444"
         bg_caf = "rgba(16, 185, 129, 0.12)" if v_caf <= 2 else "rgba(244, 63, 94, 0.12)"
         diag_caf = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
@@ -1088,7 +1070,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Devolução (Meta 9%)
         cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
         bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
         diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
@@ -1105,7 +1086,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # SAC (Meta 5%)
         cor_sac = "#10B981" if v_sac <= 5 else "#EF4444"
         bg_sac = "rgba(16, 185, 129, 0.12)" if v_sac <= 5 else "rgba(244, 63, 94, 0.12)"
         diag_sac = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
@@ -1124,18 +1104,29 @@ else:
 
         st.write("---")
 
-        # 4. PERFORMANCE INDIVIDUAL (VOLUME DO MÊS + GRÁFICO HISTÓRICO DE SLA COM META)
+        # 4. PERFORMANCE INDIVIDUAL (FATURADOS DO MÊS + HISTÓRICO)
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Performance Individual</h3>", unsafe_allow_html=True)
         col_fat, col_graf_sla = st.columns([1, 2])
 
-        tot_pedidos_faturados = int(pd.to_numeric(f_expedicao['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum()) if ('total' in f_expedicao.columns and not f_expedicao.empty) else len(f_base_vendas)
+        tot_faturados_mes = 0
+        if not f_expedicao.empty and 'total' in f_expedicao.columns:
+            df_fat_temp = f_expedicao.copy()
+            df_fat_temp['total_num'] = pd.to_numeric(df_fat_temp['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            if 'mes_ano_definido' in df_fat_temp.columns:
+                df_fat_temp['mes_iso'] = df_fat_temp['mes_ano_definido'].astype(str).str.strip().str.slice(0, 7)
+                df_fat_atual = df_fat_temp[df_fat_temp['mes_iso'] == mes_atual_iso]
+                tot_faturados_mes = int(df_fat_atual['total_num'].sum()) if not df_fat_atual.empty else int(df_fat_temp['total_num'].sum())
+            else:
+                tot_faturados_mes = int(df_fat_temp['total_num'].sum())
+        else:
+            tot_faturados_mes = len(f_base_vendas)
 
         with col_fat:
             st.markdown(f"""
                 <div class='metric-card' style='background: linear-gradient(135deg, #1E293B 0%, rgba(59, 130, 246, 0.15) 100%); border: 1px solid #3B82F640; padding: 35px 20px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
                     <div style='font-size: 40px; margin-bottom: 12px;'>📦</div>
-                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Pedidos Faturados</div>
-                    <div style='color: #FFFFFF; font-size: 52px; font-weight: 900; margin-top: 10px;'>{tot_pedidos_faturados:,}</div>
+                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Pedidos Faturados ({texto_mes_ref})</div>
+                    <div style='color: #FFFFFF; font-size: 52px; font-weight: 900; margin-top: 10px;'>{tot_faturados_mes:,}</div>
                 </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
@@ -1179,11 +1170,8 @@ else:
 
         # 5. RAIO-X: PEDIDOS EM ABERTO (BACKLOG)
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Raio-X: Pedidos em Aberto (Backlog)</h3>", unsafe_allow_html=True)
-        
-        # Filtros de status do pedido na base de vendas
         ped_ok, ped_hj, ped_at = 0, 0, 0
         crit_3_14, crit_15 = 0, 0
-        chart_dias_atraso = []
 
         if not f_base_vendas.empty:
             col_st_ped = 'status_pedido' if 'status_pedido' in f_base_vendas.columns else None
@@ -1391,6 +1379,7 @@ else:
         st.markdown("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8;'>
                 <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
+                <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
                 <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
                 <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
                 <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
@@ -1399,7 +1388,6 @@ else:
 
         st.write("")
 
-        # Download do CSV de Vendas
         col_bot_v1, col_bot_v2, col_bot_v3 = st.columns([1, 2, 1])
         with col_bot_v2:
             dados_csv_vendas = converter_df_para_csv(f_base_vendas)
