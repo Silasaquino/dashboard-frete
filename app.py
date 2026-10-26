@@ -223,7 +223,6 @@ else:
     @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_reversa_consolidados():
         lista_dfs = []
-        # Lista completa com todas as colunas operacionais da Reversa
         colunas_desejadas = [
             'data_solicitacao', 'mes_ano_solicitacao', 'tipo_solicitacao', 'seller_name',
             'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
@@ -1409,21 +1408,54 @@ else:
                 st.subheader("Histórico de Tentativas (SVA)")
                 if not f_sva.empty:
                     df_sva_plot = f_sva.copy()
-                    col_sva_label = 'sva' if 'sva' in df_sva_plot.columns else ('delivery_type' if 'delivery_type' in df_sva_plot.columns else df_sva_plot.columns[0])
-                    df_sva_plot['qtd_sva'] = pd.to_numeric(df_sva_plot['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                    df_sva_agg = df_sva_plot.groupby(col_sva_label, as_index=False)['qtd_sva'].sum().head(6)
+                    
+                    # Identifica coluna de tentativas (qtd_sva) e documento (doc_dft)
+                    col_qtd_sva = None
+                    for c in ['qtd_sva', 'sva']:
+                        if c in df_sva_plot.columns:
+                            col_qtd_sva = c
+                            break
+                            
+                    col_doc = None
+                    for c in ['doc_dft', 'documento', 'pedido']:
+                        if c in df_sva_plot.columns:
+                            col_doc = c
+                            break
 
-                    fig_sva_c = px.bar(df_sva_agg, x=col_sva_label, y='qtd_sva', text='qtd_sva', template=template_plotly, color_discrete_sequence=['#3B82F6'])
-                    fig_sva_c.update_traces(textposition='outside')
-                    fig_sva_c.update_layout(
-                        height=240,
-                        margin=dict(l=20, r=20, t=20, b=20),
-                        xaxis=dict(showgrid=False),
-                        yaxis=dict(showgrid=False),
-                        xaxis_title="",
-                        yaxis_title="Qtd SVA"
-                    )
-                    st.plotly_chart(fig_sva_c, use_container_width=True)
+                    if col_qtd_sva:
+                        # Limpa e padroniza os rótulos de SVA (ex: 1 -> 'SVA 1', 2 -> 'SVA 2')
+                        df_sva_plot['sva_num'] = pd.to_numeric(df_sva_plot[col_qtd_sva].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(0).astype(int)
+                        df_sva_plot = df_sva_plot[df_sva_plot['sva_num'] > 0]
+                        df_sva_plot['sva_label'] = df_sva_plot['sva_num'].apply(lambda n: f"SVA<br>{n}")
+
+                        if col_doc:
+                            df_sva_agg = df_sva_plot.groupby(['sva_num', 'sva_label'], as_index=False)[col_doc].nunique()
+                            df_sva_agg.rename(columns={col_doc: 'total_docs'}, inplace=True)
+                        else:
+                            df_sva_agg = df_sva_plot.groupby(['sva_num', 'sva_label'], as_index=False).size()
+                            df_sva_agg.rename(columns={'size': 'total_docs'}, inplace=True)
+
+                        df_sva_agg = df_sva_agg.sort_values('sva_num')
+
+                        fig_sva_c = px.bar(
+                            df_sva_agg,
+                            x='sva_label',
+                            y='total_docs',
+                            text='total_docs',
+                            template=template_plotly,
+                            color_discrete_sequence=['#3B82F6']
+                        )
+                        max_y_sva = df_sva_agg['total_docs'].max() if not df_sva_agg.empty else 10
+                        fig_sva_c.update_traces(textposition='outside')
+                        fig_sva_c.update_layout(
+                            height=240,
+                            margin=dict(l=20, r=20, t=30, b=20),
+                            xaxis=dict(showgrid=False, title=""),
+                            yaxis=dict(showgrid=False, title="", range=[0, max_y_sva * 1.35], showticklabels=False)
+                        )
+                        st.plotly_chart(fig_sva_c, use_container_width=True)
+                    else:
+                        st.info("Coluna de tentativas SVA não encontrada.")
                 else:
                     st.info("Sem histórico de tentativas SVA.")
 
