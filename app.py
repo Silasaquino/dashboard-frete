@@ -375,7 +375,7 @@ else:
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
     # ==========================================
-    # ESTILIZAÇÃO CSS (ABAS MODERNAS SEPARADAS)
+    # ESTILIZAÇÃO CSS (ABAS AMPLAMENTE SEPARADAS E DESTACADAS)
     # ==========================================
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
@@ -405,35 +405,52 @@ else:
 
                 /* CONTAINER DAS ABAS (TABS LIST) */
                 div[data-baseweb="tab-list"] {
+                    display: flex !important;
                     gap: 3.5rem !important;
                     background-color: transparent !important;
-                    border-bottom: 1px solid #1E293B !important;
-                    padding-bottom: 2px !important;
+                    border-bottom: 1.5px solid #1E293B !important;
+                    padding-bottom: 0px !important;
                     margin-bottom: 25px !important;
                 }
 
-                /* ESTILO GERAL DAS ABAS */
-                div[data-baseweb="tab-list"] button[data-baseweb="tab"] {
+                /* CADA ABA (BOTÃO) */
+                button[data-baseweb="tab"], button[role="tab"] {
+                    background: transparent !important;
+                    border: none !important;
+                    padding: 8px 16px 14px 16px !important;
+                    margin-right: 2rem !important;
+                    cursor: pointer !important;
+                }
+
+                /* TEXTO DA ABA INATIVA */
+                button[data-baseweb="tab"] p, button[role="tab"] p,
+                button[data-baseweb="tab"] div, button[role="tab"] div {
                     font-size: 19px !important;
                     font-weight: 700 !important;
                     color: #64748B !important;
-                    background-color: transparent !important;
-                    border: none !important;
-                    padding: 8px 12px 14px 12px !important;
-                    border-bottom: 3.5px solid transparent !important;
-                    transition: all 0.2s ease-in-out !important;
                 }
 
-                /* HOVER NA ABA */
-                div[data-baseweb="tab-list"] button[data-baseweb="tab"]:hover {
+                button[data-baseweb="tab"]:hover p, button[role="tab"]:hover p {
                     color: #CBD5E1 !important;
                 }
 
-                /* ABA SELECIONADA (PADRÃO PRINT) */
-                div[data-baseweb="tab-list"] button[aria-selected="true"] {
+                /* ABA ATIVA (SELECIONADA) */
+                button[data-baseweb="tab"][aria-selected="true"],
+                button[role="tab"][aria-selected="true"] {
+                    border-bottom: 3.5px solid #3B82F6 !important;
+                }
+
+                button[data-baseweb="tab"][aria-selected="true"] p,
+                button[role="tab"][aria-selected="true"] p,
+                button[data-baseweb="tab"][aria-selected="true"] div,
+                button[role="tab"][aria-selected="true"] div {
                     color: #FFFFFF !important;
                     font-weight: 900 !important;
-                    border-bottom: 3.5px solid #3B82F6 !important;
+                }
+
+                div[data-baseweb="tab-highlight"] {
+                    background-color: #3B82F6 !important;
+                    height: 3.5px !important;
                 }
 
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
@@ -492,34 +509,50 @@ else:
                 }
                 [data-testid="stSidebar"] * { color: #0F172A !important; }
 
-                /* CONTAINER DAS ABAS (TABS LIST) */
                 div[data-baseweb="tab-list"] {
+                    display: flex !important;
                     gap: 3.5rem !important;
                     background-color: transparent !important;
-                    border-bottom: 1px solid #E2E8F0 !important;
-                    padding-bottom: 2px !important;
+                    border-bottom: 1.5px solid #E2E8F0 !important;
+                    padding-bottom: 0px !important;
                     margin-bottom: 25px !important;
                 }
 
-                div[data-baseweb="tab-list"] button[data-baseweb="tab"] {
+                button[data-baseweb="tab"], button[role="tab"] {
+                    background: transparent !important;
+                    border: none !important;
+                    padding: 8px 16px 14px 16px !important;
+                    margin-right: 2rem !important;
+                    cursor: pointer !important;
+                }
+
+                button[data-baseweb="tab"] p, button[role="tab"] p,
+                button[data-baseweb="tab"] div, button[role="tab"] div {
                     font-size: 19px !important;
                     font-weight: 700 !important;
                     color: #94A3B8 !important;
-                    background-color: transparent !important;
-                    border: none !important;
-                    padding: 8px 12px 14px 12px !important;
-                    border-bottom: 3.5px solid transparent !important;
-                    transition: all 0.2s ease-in-out !important;
                 }
 
-                div[data-baseweb="tab-list"] button[data-baseweb="tab"]:hover {
+                button[data-baseweb="tab"]:hover p, button[role="tab"]:hover p {
                     color: #475569 !important;
                 }
 
-                div[data-baseweb="tab-list"] button[aria-selected="true"] {
+                button[data-baseweb="tab"][aria-selected="true"],
+                button[role="tab"][aria-selected="true"] {
+                    border-bottom: 3.5px solid #2563EB !important;
+                }
+
+                button[data-baseweb="tab"][aria-selected="true"] p,
+                button[role="tab"][aria-selected="true"] p,
+                button[data-baseweb="tab"][aria-selected="true"] div,
+                button[role="tab"][aria-selected="true"] div {
                     color: #0F172A !important;
                     font-weight: 900 !important;
-                    border-bottom: 3.5px solid #2563EB !important;
+                }
+
+                div[data-baseweb="tab-highlight"] {
+                    background-color: #2563EB !important;
+                    height: 3.5px !important;
                 }
 
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
