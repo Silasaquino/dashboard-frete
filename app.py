@@ -1406,58 +1406,67 @@ else:
 
             with col_sva_graf:
                 st.subheader("Histórico de Tentativas (SVA)")
-                if not f_sva.empty:
-                    df_sva_plot = f_sva.copy()
+                
+                # Procura a base operacional que contém 'qtd_sva' e 'doc_dft'
+                df_sva_fonte = f_base_vendas if (not f_base_vendas.empty and 'qtd_sva' in f_base_vendas.columns) else f_sva
+                
+                if not df_sva_fonte.empty:
+                    df_sva_calc = df_sva_fonte.copy()
                     
-                    # Identifica coluna de tentativas (qtd_sva) e documento (doc_dft)
-                    col_qtd_sva = None
+                    col_sva_key = None
                     for c in ['qtd_sva', 'sva']:
-                        if c in df_sva_plot.columns:
-                            col_qtd_sva = c
+                        if c in df_sva_calc.columns:
+                            col_sva_key = c
                             break
                             
-                    col_doc = None
+                    col_doc_key = None
                     for c in ['doc_dft', 'documento', 'pedido']:
-                        if c in df_sva_plot.columns:
-                            col_doc = c
+                        if c in df_sva_calc.columns:
+                            col_doc_key = c
                             break
 
-                    if col_qtd_sva:
-                        # Limpa e padroniza os rótulos de SVA (ex: 1 -> 'SVA 1', 2 -> 'SVA 2')
-                        df_sva_plot['sva_num'] = pd.to_numeric(df_sva_plot[col_qtd_sva].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(0).astype(int)
-                        df_sva_plot = df_sva_plot[df_sva_plot['sva_num'] > 0]
-                        df_sva_plot['sva_label'] = df_sva_plot['sva_num'].apply(lambda n: f"SVA<br>{n}")
+                    if col_sva_key:
+                        # Extrai o número da tentativa (1, 2, 3, etc.)
+                        df_sva_calc['sva_num'] = pd.to_numeric(
+                            df_sva_calc[col_sva_key].astype(str).str.extract(r'(\d+)')[0],
+                            errors='coerce'
+                        ).dropna().astype(int)
 
-                        if col_doc:
-                            df_sva_agg = df_sva_plot.groupby(['sva_num', 'sva_label'], as_index=False)[col_doc].nunique()
-                            df_sva_agg.rename(columns={col_doc: 'total_docs'}, inplace=True)
+                        # Filtra apenas tentativas válidas (> 0)
+                        df_sva_calc = df_sva_calc[df_sva_calc['sva_num'] > 0]
+
+                        if col_doc_key:
+                            df_sva_group = df_sva_calc.groupby('sva_num', as_index=False)[col_doc_key].nunique()
+                            df_sva_group.rename(columns={col_doc_key: 'contagem_doc_dft'}, inplace=True)
                         else:
-                            df_sva_agg = df_sva_plot.groupby(['sva_num', 'sva_label'], as_index=False).size()
-                            df_sva_agg.rename(columns={'size': 'total_docs'}, inplace=True)
+                            df_sva_group = df_sva_calc.groupby('sva_num', as_index=False).size()
+                            df_sva_group.rename(columns={'size': 'contagem_doc_dft'}, inplace=True)
 
-                        df_sva_agg = df_sva_agg.sort_values('sva_num')
+                        # Ordena de forma crescente pelas tentativas (1, 2, 3, 4, 5, 6, 10...)
+                        df_sva_group = df_sva_group.sort_values('sva_num')
+                        df_sva_group['sva_eixo_x'] = df_sva_group['sva_num'].astype(str)
 
                         fig_sva_c = px.bar(
-                            df_sva_agg,
-                            x='sva_label',
-                            y='total_docs',
-                            text='total_docs',
+                            df_sva_group,
+                            x='sva_eixo_x',
+                            y='contagem_doc_dft',
+                            text='contagem_doc_dft',
                             template=template_plotly,
-                            color_discrete_sequence=['#3B82F6']
+                            color_discrete_sequence=['#1E5E82' if tema_selecionado != "Escuro 🌙" else '#3B82F6']
                         )
-                        max_y_sva = df_sva_agg['total_docs'].max() if not df_sva_agg.empty else 10
+                        max_y = df_sva_group['contagem_doc_dft'].max() if not df_sva_group.empty else 100
                         fig_sva_c.update_traces(textposition='outside')
                         fig_sva_c.update_layout(
-                            height=240,
+                            height=250,
                             margin=dict(l=20, r=20, t=30, b=20),
-                            xaxis=dict(showgrid=False, title=""),
-                            yaxis=dict(showgrid=False, title="", range=[0, max_y_sva * 1.35], showticklabels=False)
+                            xaxis=dict(showgrid=False, title="qtd_sva", type='category'),
+                            yaxis=dict(showgrid=True, title="", range=[0, max_y * 1.25])
                         )
                         st.plotly_chart(fig_sva_c, use_container_width=True)
                     else:
-                        st.info("Coluna de tentativas SVA não encontrada.")
+                        st.info("Coluna qtd_sva não encontrada na base.")
                 else:
-                    st.info("Sem histórico de tentativas SVA.")
+                    st.info("Sem histórico de tentativas SVA para este filtro.")
 
             st.write("---")
 
