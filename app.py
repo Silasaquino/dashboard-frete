@@ -568,7 +568,7 @@ else:
             unsafe_allow_html=True
         )
 
-        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO (INTEGRADA COM A REGRA DE CORTE)
+        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
 
         with col_filtro_tipo:
@@ -588,22 +588,15 @@ else:
                 reverse=True
             )
             meses_disponiveis = ["Todos"] + meses_unicos
-
-            idx_padrao = 0
-            for i, m in enumerate(meses_disponiveis):
-                if mes_atual_iso in str(m) or str(m) in mes_atual_iso:
-                    idx_padrao = i
-                    break
         else:
             meses_disponiveis = ["Todos"]
-            idx_padrao = 0
 
         with col_filtro_mes:
             st.markdown(f"<b>📆 Selecione o Período ({tipo_visao_data}):</b>", unsafe_allow_html=True)
             mes_selecionado = st.selectbox(
                 f"Selecione o {tipo_visao_data}",
                 meses_disponiveis,
-                index=idx_padrao,
+                index=0,
                 label_visibility="collapsed"
             )
 
@@ -616,7 +609,7 @@ else:
         st.write("")
 
         # ==========================================
-        # KPIS PRINCIPAIS (ORIGINAL ESTÁVEL DE SEXTA)
+        # KPIS PRINCIPAIS (ORIGINAL ESTÁVEL)
         # ==========================================
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
@@ -707,6 +700,7 @@ else:
             if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_aberto_temp = df_filtrado_resumo.copy()
                 
+                # Conversão e correção de escala decimal vs percentagem
                 df_aberto_temp['taxa_devolucao_aberto'] = (
                     df_aberto_temp['taxa_devolucao_aberto']
                     .astype(str)
@@ -714,20 +708,27 @@ else:
                     .str.replace(',', '.', regex=False)
                     .str.strip()
                 )
-                df_aberto_temp['taxa_devolucao_aberto'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce').fillna(0.0)
+                df_aberto_temp['taxa_num'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce').fillna(0.0)
+
+                # Se a coluna já vier em formato inteiro (ex: 50 para 50%), normaliza para escala decimal (0 a 1)
+                med_val = df_aberto_temp['taxa_num'].median()
+                if med_val > 1.05:
+                    df_aberto_temp['taxa_aberto'] = df_aberto_temp['taxa_num'] / 100.0
+                else:
+                    df_aberto_temp['taxa_aberto'] = df_aberto_temp['taxa_num']
 
                 df_top_aberto = (
-                    df_aberto_temp.groupby('nome_seller', as_index=False)['taxa_devolucao_aberto']
+                    df_aberto_temp.groupby('nome_seller', as_index=False)['taxa_aberto']
                     .mean()
-                    .sort_values('taxa_devolucao_aberto', ascending=False)
+                    .sort_values('taxa_aberto', ascending=False)
                     .head(10)
-                    .sort_values('taxa_devolucao_aberto', ascending=True)
+                    .sort_values('taxa_aberto', ascending=True)
                 )
-                df_top_aberto['taxa_str'] = df_top_aberto['taxa_devolucao_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+                df_top_aberto['taxa_str'] = df_top_aberto['taxa_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
 
                 fig_top_aberto = px.bar(
                     df_top_aberto,
-                    x='taxa_devolucao_aberto',
+                    x='taxa_aberto',
                     y='nome_seller',
                     text='taxa_str',
                     orientation='h',
@@ -735,7 +736,7 @@ else:
                     color_discrete_sequence=['#EF4444']
                 )
 
-                max_taxa_aberto = df_top_aberto['taxa_devolucao_aberto'].max() if not df_top_aberto.empty else 0.50
+                max_taxa_aberto = df_top_aberto['taxa_aberto'].max() if not df_top_aberto.empty else 0.50
 
                 fig_top_aberto.update_traces(textposition='outside')
                 fig_top_aberto.update_layout(
