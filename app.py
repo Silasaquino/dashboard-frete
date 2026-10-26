@@ -425,6 +425,7 @@ else:
                     border-radius: 10px;
                     padding: 18px 20px;
                     text-align: center;
+                    box-sizing: border-box !important;
                 }
                 .metric-card-label { font-size: 13px; color: #CBD5E1 !important; font-weight: 700; margin-bottom: 6px; }
                 .metric-card-value { font-size: 26px; font-weight: 900; color: #FFFFFF !important; }
@@ -479,6 +480,7 @@ else:
                     border-radius: 10px;
                     padding: 18px 20px;
                     text-align: center;
+                    box-sizing: border-box !important;
                 }
                 .metric-card-label { font-size: 13px; color: #475569 !important; font-weight: 700; margin-bottom: 6px; }
                 .metric-card-value { font-size: 26px; font-weight: 900; color: #0F172A !important; }
@@ -611,13 +613,13 @@ else:
         st.write("")
 
         # ----------------------------------------------------
-        # 2. KPIS PRINCIPAIS (COM O CARD DE DEVOLUÇÃO AO LADO)
+        # 2. KPIS PRINCIPAIS (COM O CARD DE DEVOLUÇÃO AO LADO - MESMA ALTURA)
         # ----------------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
         qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
 
-        # Cálculo da Taxa de Devolução (Concluída)
+        # Cálculo da Taxa de Devolução Concluída (Oficial)
         col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
         v_dev, a_dev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
         cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
@@ -626,18 +628,35 @@ else:
 
         col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
         with col_kpi1:
-            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Total Linhas Agrupadas</div><div class='metric-card-value'>{len(df_base_reversa_periodo):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class='metric-card' style='height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
+                    <div class='metric-card-label'>Total Linhas Agrupadas</div>
+                    <div class='metric-card-value' style='font-size: 32px;'>{len(df_base_reversa_periodo):,}</div>
+                </div>
+            """.replace(",", "."), unsafe_allow_html=True)
         with col_kpi2:
-            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Qtd. Remessas Únicas</div><div class='metric-card-value'>{qtd_remessas_unicas:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class='metric-card' style='height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
+                    <div class='metric-card-label'>Qtd. Remessas Únicas</div>
+                    <div class='metric-card-value' style='font-size: 32px;'>{qtd_remessas_unicas:,}</div>
+                </div>
+            """.replace(",", "."), unsafe_allow_html=True)
         with col_kpi3:
-            st.markdown(f"<div class='metric-card' style='height: 100%; display: flex; flex-direction: column; justify-content: center;'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class='metric-card' style='height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
+                    <div class='metric-card-label'>Modal Analisado</div>
+                    <div class='metric-card-value' style='font-size: 30px;'>{modal_selecionado}</div>
+                </div>
+            """, unsafe_allow_html=True)
         with col_kpi4:
             st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 18px 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
-                    <div style='font-size: 36px; font-weight: 900; color: {cor_dev}; margin: 4px 0 2px 0;'>{v_dev:.2f}%</div>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 700; margin-bottom: 12px;'>Ant: {a_dev:.2f}%</div>
-                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; line-height: 1.4; margin-top: auto;'>
+                <div class='metric-card' style='height: 180px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; justify-content: space-between;'>
+                    <div>
+                        <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
+                        <div style='font-size: 34px; font-weight: 900; color: {cor_dev}; margin: 2px 0 0 0;'>{v_dev:.2f}%</div>
+                        <div style='font-size: 12px; color: #94A3B8; font-weight: 700;'>Ant: {a_dev:.2f}%</div>
+                    </div>
+                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 6px 10px; border-radius: 8px; font-size: 10.5px; font-weight: 700; line-height: 1.3;'>
                         {diag_dev}
                     </div>
                 </div>
@@ -996,15 +1015,15 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA
+        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA (EXCLUSIVO)
         # ----------------------------------------------------
         st.markdown("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8; margin-bottom: 25px;'>
-                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
+                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação Reversa</h4>
                 <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
-                <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
-                <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
-                <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
+                <p style='margin: 4px 0;'>• <b>Taxa de Devolução (%):</b> Relação entre o total de peças devolvidas concluídas e o total de peças expedidas (Meta: até 9.0%).</p>
+                <p style='margin: 4px 0;'>• <b>Dias em Aberto no Seller:</b> Tempo decorrido (em dias corridos) desde que o pacote obteve o status 'ENTREGUE AO SELLER' até a sua conferência e finalização (Alerta para pacotes com +5 dias corridos).</p>
+                <p style='margin: 4px 0;'>• <b>Jornada do Tracking:</b> Fluxo sequencial da logística reversa desde a geração da solicitação até o retorno e finalização no estoque do lojista.</p>
             </div>
         """, unsafe_allow_html=True)
 
