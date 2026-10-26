@@ -496,7 +496,6 @@ else:
             </style>
         """, unsafe_allow_html=True)
 
-    # Função compartilhada de cálculo de taxas com corte
     def calcular_taxas_com_corte(df, col_num, col_den, col_data):
         if df.empty or col_num not in df.columns or col_den not in df.columns or col_data not in df.columns:
             return 0.0, 0.0
@@ -529,7 +528,7 @@ else:
     ])
 
     # ==========================================
-    # ABA: OPERAÇÃO REVERSA (REESTRUTURADA NO PADRÃO PULSE)
+    # ABA: OPERAÇÃO REVERSA
     # ==========================================
     with aba_reversa:
         mask_reversa = pd.Series(True, index=df_raw_reversa.index)
@@ -563,11 +562,60 @@ else:
             f"""
             <div class='header-container-unificado'>
                 <div class='header-titulo'>📋 Boletim de Operação Reversa</div>
-                <div class='header-atualizacao'>🗓️ Ref: <b>{texto_mes_ref}</b> &nbsp;|&nbsp; 🔄 Atualizado: <b>{data_hora_formatada}</b></div>
+                <div class='header-atualizacao'>🗓️ Ref Oficial: <b>{texto_mes_ref}</b> &nbsp;|&nbsp; 🔄 Atualizado: <b>{data_hora_formatada}</b></div>
             </div>
             """, 
             unsafe_allow_html=True
         )
+
+        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO (INTEGRADA COM A REGRA DE CORTE)
+        col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
+
+        with col_filtro_tipo:
+            st.markdown("<b>📅 Escolha o Tipo de Visão:</b>", unsafe_allow_html=True)
+            tipo_visao_data = st.radio(
+                "Tipo de Visão de Data",
+                ["Mês/Ano Solicitação", "Mês/Ano Finalização"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+
+        coluna_data_alvo = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+
+        if coluna_data_alvo in df_filtrado_reversa.columns:
+            meses_unicos = sorted(
+                [str(m) for m in df_filtrado_reversa[coluna_data_alvo].dropna().unique() if str(m).strip() != ""],
+                reverse=True
+            )
+            meses_disponiveis = ["Todos"] + meses_unicos
+
+            # Procura posicionar o seletor no mês de corte como padrão, se existir na lista
+            idx_padrao = 0
+            for i, m in enumerate(meses_disponiveis):
+                if mes_atual_iso in str(m) or str(m) in mes_atual_iso:
+                    idx_padrao = i
+                    break
+        else:
+            meses_disponiveis = ["Todos"]
+            idx_padrao = 0
+
+        with col_filtro_mes:
+            st.markdown(f"<b>📆 Selecione o Período ({tipo_visao_data}):</b>", unsafe_allow_html=True)
+            mes_selecionado = st.selectbox(
+                f"Selecione o {tipo_visao_data}",
+                meses_disponiveis,
+                index=idx_padrao,
+                label_visibility="collapsed"
+            )
+
+        # Filtra os dados detalhados da reversa com base no período escolhido
+        df_base_reversa_periodo = df_filtrado_reversa.copy()
+        if mes_selecionado != "Todos" and coluna_data_alvo in df_base_reversa_periodo.columns:
+            df_base_reversa_periodo = df_base_reversa_periodo[
+                df_base_reversa_periodo[coluna_data_alvo].astype(str) == mes_selecionado
+            ]
+
+        st.write("")
 
         # 1. CÁLCULO DAS 4 TAXAS DE QUALIDADE DA REVERSA (ATUAL VS ANTERIOR)
         col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
@@ -580,7 +628,6 @@ else:
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação Reversa</h3>", unsafe_allow_html=True)
         col_rq1, col_rq2, col_rq3, col_rq4 = st.columns(4)
 
-        # Taxa de Devolução (Meta 9%)
         cor_dev = "#10B981" if v_dev_rev <= 9 else "#EF4444"
         bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev_rev <= 9 else "rgba(244, 63, 94, 0.12)"
         diag_dev = "Taxa de devolução dentro da meta! Monitorização contínua." if v_dev_rev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos de retorno."
@@ -597,7 +644,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Devoluções em Aberto (Meta 5%)
         cor_aberto = "#10B981" if v_aberto_rev <= 5 else "#EF4444"
         bg_aberto = "rgba(16, 185, 129, 0.12)" if v_aberto_rev <= 5 else "rgba(244, 63, 94, 0.12)"
         diag_aberto = "Baixo volume retido. Pacotes estão sendo bipados com rapidez." if v_aberto_rev <= 5 else "Alerta de retenção: muitos pacotes em aberto sem conferência final."
@@ -614,7 +660,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Devolução SAC (Meta 2%)
         cor_sac_r = "#10B981" if v_sac_rev <= 2 else "#EF4444"
         bg_sac_r = "rgba(16, 185, 129, 0.12)" if v_sac_rev <= 2 else "rgba(244, 63, 94, 0.12)"
         diag_sac_r = "Devoluções abertas via atendimento sob controle e dentro da meta." if v_sac_rev <= 2 else "Atenção: Aumento de devoluções forçadas através do canal SAC."
@@ -631,7 +676,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Extravios (Meta 1%)
         cor_ext = "#10B981" if v_ext_rev <= 1 else "#EF4444"
         bg_ext = "rgba(16, 185, 129, 0.12)" if v_ext_rev <= 1 else "rgba(244, 63, 94, 0.12)"
         diag_ext = "Índice de sinistro ou extravio na reversa dentro da tolerância." if v_ext_rev <= 1 else "Perdas elevadas de pacotes em transporte reverso. Acompanhe acareações."
@@ -655,14 +699,15 @@ else:
         col_rev_fat, col_graf_rev_meta = st.columns([1, 2])
 
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
-        colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
-        qtd_remessas_unicas = df_filtrado_reversa[colunas_existentes[0]].nunique() if (colunas_existentes and not df_filtrado_reversa.empty) else len(df_filtrado_reversa)
+        colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
+        qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
 
         with col_rev_fat:
+            rotulo_periodo = mes_selecionado if mes_selecionado != "Todos" else texto_mes_ref
             st.markdown(f"""
                 <div class='metric-card' style='background: linear-gradient(135deg, #1E293B 0%, rgba(96, 165, 250, 0.15) 100%); border: 1px solid #60A5FA40; padding: 35px 20px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
                     <div style='font-size: 40px; margin-bottom: 12px;'>🔄</div>
-                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Remessas Únicas ({texto_mes_ref})</div>
+                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Remessas Únicas ({rotulo_periodo})</div>
                     <div style='color: #FFFFFF; font-size: 52px; font-weight: 900; margin-top: 10px;'>{qtd_remessas_unicas:,}</div>
                 </div>
             """.replace(",", "."), unsafe_allow_html=True)
@@ -713,8 +758,8 @@ else:
         r_ok, r_atencao, r_critico = 0, 0, 0
         df_dist_aging_rev = pd.DataFrame()
 
-        if 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            for _, row in df_filtrado_reversa.iterrows():
+        if 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+            for _, row in df_base_reversa_periodo.iterrows():
                 val_g = str(row['grupo_aberto_seller']).strip().upper()
                 if "+5" in val_g or "5+" in val_g:
                     r_critico += 1
@@ -728,7 +773,7 @@ else:
                         elif d_n >= 5:
                             r_critico += 1
 
-            df_dist_aging_rev = df_filtrado_reversa['grupo_aberto_seller'].value_counts().reset_index()
+            df_dist_aging_rev = df_base_reversa_periodo['grupo_aberto_seller'].value_counts().reset_index()
             df_dist_aging_rev.columns = ['faixa', 'quantidade']
             ordem_faixas_rev = ['0 DIAS CORRIDOS', '1 DIAS CORRIDOS', '2 DIAS CORRIDOS', '3 DIAS CORRIDOS', '4 DIAS CORRIDOS', '5 DIAS CORRIDOS', '⚠️ +5 DIAS CORRIDOS']
             df_dist_aging_rev['faixa'] = df_dist_aging_rev['faixa'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("+5" in g or "5+" in g) else g)
@@ -777,8 +822,8 @@ else:
 
         with col_mot_graf:
             st.subheader("🔍 Top Motivos de Troca / Devolução")
-            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-                df_motivos = df_filtrado_reversa['motivo_troca'].value_counts().head(6).reset_index()
+            if 'motivo_troca' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_motivos = df_base_reversa_periodo['motivo_troca'].value_counts().head(6).reset_index()
                 df_motivos.columns = ['motivo', 'quantidade']
                 df_motivos = df_motivos.sort_values('quantidade', ascending=True)
 
@@ -795,14 +840,14 @@ else:
                 fig_motivos.update_layout(height=280, xaxis_title="", yaxis_title="", margin=dict(l=20, r=40, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
                 st.plotly_chart(fig_motivos, use_container_width=True)
             else:
-                st.info("Sem dados de motivos registrados.")
+                st.info("Sem dados de motivos registrados para o período selecionado.")
 
         st.write("---")
 
         # 5. JORNADA DO TRACKING (PIPELINE DA REVERSA)
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
-        if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            df_tracking = df_filtrado_reversa['tracking'].value_counts().reset_index()
+        if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+            df_tracking = df_base_reversa_periodo['tracking'].value_counts().reset_index()
             df_tracking.columns = ['status_tracking', 'quantidade']
             total_tracking = df_tracking['quantidade'].sum()
 
@@ -860,7 +905,7 @@ else:
 
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
-            dados_csv = converter_df_para_csv(df_filtrado_reversa)
+            dados_csv = converter_df_para_csv(df_base_reversa_periodo)
             nome_arquivo_csv = f"relatorio_reversa_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
             st.download_button(
                 label="📥 Descarregar Relatório Completo em CSV (.csv)",
