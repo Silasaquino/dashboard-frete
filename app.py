@@ -223,10 +223,14 @@ else:
     @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_reversa_consolidados():
         lista_dfs = []
+        # Lista completa com todas as colunas operacionais da Reversa
         colunas_desejadas = [
             'data_solicitacao', 'mes_ano_solicitacao', 'tipo_solicitacao', 'seller_name',
             'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
-            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'grupo_aberto_seller'
+            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'grupo_aberto_seller',
+            'auto_postagem', 'object_tag_number', 'status_rastreio', 'data_postagem',
+            'data_ultimo_status_correios', 'ultimo_status_correios', 'sku', 'quantidade',
+            'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
         ]
 
         for item in PLANILHAS_BASE_CONFIG:
@@ -235,11 +239,11 @@ else:
             df_temp = pd.DataFrame()
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-                df_temp = pd.read_csv(url_csv, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                df_temp = pd.read_csv(url_csv, usecols=lambda c: c.strip().lower() in [col.lower() for col in colunas_desejadas], low_memory=False)
             except Exception:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
-                    df_temp = pd.read_csv(url_gviz, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                    df_temp = pd.read_csv(url_gviz, usecols=lambda c: c.strip().lower() in [col.lower() for col in colunas_desejadas], low_memory=False)
                 except Exception:
                     pass
 
@@ -613,7 +617,7 @@ else:
         st.write("")
 
         # ----------------------------------------------------
-        # 2. KPIS PRINCIPAIS (COM O CARD DE DEVOLUÇÃO AO LADO - MESMA ALTURA)
+        # 2. KPIS PRINCIPAIS (COM O CARD DE DEVOLUÇÃO AO LADO - MESMA ALTURA FIXA 180PX)
         # ----------------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
