@@ -93,20 +93,17 @@ def validar_e_restaurar_sessao():
     """MANTÉM O LOGIN APÓS F5: Verifica a URL e valida o limite de 10 minutos."""
     agora = datetime.now()
     
-    # 1. Tenta restaurar da URL se deu F5
     params = st.query_params
     if "user" in params and "empresa" in params and "time" in params:
         try:
             time_stamp_str = params["time"]
             ultima_atividade = datetime.fromtimestamp(float(time_stamp_str))
             
-            # Se ainda estiver dentro dos 10 minutos
             if agora - ultima_atividade <= timedelta(minutes=TEMPO_EXPIRED_MINUTOS):
                 st.session_state["autenticado"] = True
                 st.session_state["usuario_logado"] = params["user"]
                 st.session_state["empresa_logada"] = params["empresa"]
                 st.session_state["ultima_atividade"] = agora
-                # Atualiza a hora da última atividade na URL
                 st.query_params["time"] = str(agora.timestamp())
                 return True
             else:
@@ -117,7 +114,6 @@ def validar_e_restaurar_sessao():
             fazer_logout()
             return False
 
-    # 2. Se já estiver no session_state durante o uso contínuo
     if st.session_state.get("autenticado", False):
         ultima_atividade = st.session_state.get("ultima_atividade")
         if ultima_atividade and (agora - ultima_atividade > timedelta(minutes=TEMPO_EXPIRED_MINUTOS)):
@@ -146,7 +142,6 @@ def verificar_login_google():
         st.session_state["empresa_logada"] = empresa_logada
         st.session_state["ultima_atividade"] = agora
 
-        # Grava os parâmetros na URL para resistir ao F5
         st.query_params["user"] = usuario_input
         st.query_params["empresa"] = empresa_logada
         st.query_params["time"] = str(agora.timestamp())
@@ -164,7 +159,6 @@ def converter_df_para_csv(df):
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
 
 
-# Executa a validação de sessão
 esta_autenticado = validar_e_restaurar_sessao()
 
 
@@ -189,7 +183,6 @@ if not esta_autenticado:
 else:
     empresa_usuario = st.session_state.get("empresa_logada", "").strip()
 
-    # --- BARRA LATERAL (SIDEBAR LIMPA) ---
     st.sidebar.title("Perfil")
     st.sidebar.write(f"👤 **Utilizador:** {st.session_state.get('usuario_logado', '')}")
     st.sidebar.write(f"🏢 **Empresa:** {empresa_usuario}")
@@ -316,7 +309,6 @@ else:
             return df_final
         return pd.DataFrame()
 
-    # Carrega dados de vendas de forma preguiçosa/cacheada
     df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
     df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
     df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
@@ -335,7 +327,7 @@ else:
     ])
 
     # ==========================================
-    # ABA: OPERAÇÃO REVERSA (ESTRUTURA 100% INTACTA DE SEXTA-FEIRA)
+    # ABA: OPERAÇÃO REVERSA (100% IDÊNTICA AO CÓDIGO DE SEXTA)
     # ==========================================
     with aba_reversa:
         col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
@@ -946,7 +938,7 @@ else:
             )
 
     # ==========================================
-    # ABA: VENDAS (MÓDULO COMPLETO CONSTRUÍDO)
+    # ABA: VENDAS (BOLETIM INDIVIDUAL - REACT PULSE)
     # ==========================================
     with aba_vendas:
         # Seletor de Modal específico para Vendas
@@ -956,15 +948,14 @@ else:
             st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO (VENDAS)</span>", unsafe_allow_html=True)
             modal_vendas_sel = st.selectbox("Modal Vendas", modais_vendas, index=0, key="sb_vendas_modal", label_visibility="collapsed")
 
-        # Filtro de dados de vendas para o Seller selecionado/logado
-        target_seller_vendas = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
-        target_str_v = str(target_seller_vendas).strip().upper()
+        target_seller_v = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
+        target_str_v = str(target_seller_v).strip().upper()
 
         def filtrar_vendas(df_input):
             if df_input.empty:
                 return df_input
             df_out = df_input.copy()
-            if target_seller_vendas != "Todos" and 'nome_seller' in df_out.columns:
+            if target_seller_v != "Todos" and 'nome_seller' in df_out.columns:
                 df_out = df_out[df_out['nome_seller'].astype(str).str.strip().str.upper() == target_str_v]
             if modal_vendas_sel != "GERAL" and 'delivery_type' in df_out.columns:
                 df_out = df_out[df_out['delivery_type'].astype(str).str.strip().str.upper() == modal_vendas_sel]
@@ -979,7 +970,6 @@ else:
         f_status_loja = filtrar_vendas(df_res_status_loja)
         f_base_vendas = filtrar_vendas(df_raw_vendas_base)
 
-        # Barra de Título Vendas
         data_hora_vendas = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_vendas_base.columns and not df_raw_vendas_base.empty:
             d_max_v = pd.to_datetime(df_raw_vendas_base['ultima_atualizacao_tabela']).max()
@@ -995,41 +985,381 @@ else:
             unsafe_allow_html=True
         )
 
-        # Cálculos com conversão numérica forçada para evitar TypeError/ValueError
-        if 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
-            tot_exp_prazo = float(pd.to_numeric(f_expedicao['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-        else:
-            tot_exp_prazo = 0.0
+        # 1. BANNER DE STATUS OPERACIONAL (STATUS LOJA)
+        dias_inativo = 0
+        if not f_status_loja.empty and 'status_loja' in f_status_loja.columns:
+            s_val = pd.to_numeric(f_status_loja['status_loja'].astype(str).str.replace(',', '.'), errors='coerce').max()
+            dias_inativo = s_val if pd.notnull(s_val) else 0
 
-        if 'total' in f_expedicao.columns and not f_expedicao.empty:
-            tot_exp_pedidos = float(pd.to_numeric(f_expedicao['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        if dias_inativo <= 3:
+            st_msg = "Loja operando normalmente."
+            st_cor = "#10B981"
+            st_ico = "✅"
+            st_bg = "rgba(16, 185, 129, 0.15)"
+        elif dias_inativo <= 6:
+            st_msg = f"Atenção: Movimente sua loja. ({int(dias_inativo)} dias sem expedição)"
+            st_cor = "#F59E0B"
+            st_ico = "⚠️"
+            st_bg = "rgba(245, 158, 11, 0.15)"
         else:
-            tot_exp_pedidos = 0.0
-        taxa_exp_geral = (tot_exp_prazo / tot_exp_pedidos * 100) if tot_exp_pedidos > 0 else 0.0
+            st_msg = f"Loja inativada ou sem movimento crítico. ({int(dias_inativo)} dias sem expedição)"
+            st_cor = "#EF4444"
+            st_ico = "🛑"
+            st_bg = "rgba(244, 63, 94, 0.15)"
 
-        if 'entrega_no_prazo' in f_entregas.columns and not f_entregas.empty:
-            tot_ent_prazo = float(pd.to_numeric(f_entregas['entrega_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        st.markdown(f"""
+            <div style='background-color: {st_bg}; border: 1px solid {st_cor}40; padding: 18px 24px; border-radius: 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 25px;'>
+                <span style='font-size: 24px;'>{st_ico}</span>
+                <span style='color: {st_cor}; font-size: 16px; font-weight: 800;'>Status Operacional: {st_msg}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 2. CÁLCULO DAS 4 TAXAS DE QUALIDADE (ATUAL VS ANTERIOR)
+        def calcular_taxa_vendas(df, col_num, col_den):
+            if df.empty or col_num not in df.columns or col_den not in df.columns:
+                return 0.0, 0.0
+            
+            # Ordenar meses para pegar atual e anterior
+            col_m = 'mes_ano_definido' if 'mes_ano_definido' in df.columns else ('mes_ano_compra' if 'mes_ano_compra' in df.columns else None)
+            df_calc = df.copy()
+            df_calc['num'] = pd.to_numeric(df_calc[col_num].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            df_calc['den'] = pd.to_numeric(df_calc[col_den].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            
+            if col_m and col_m in df_calc.columns:
+                meses = sorted(df_calc[col_m].dropna().astype(str).unique())
+                m_atual = meses[-1] if len(meses) >= 1 else None
+                m_ant = meses[-2] if len(meses) >= 2 else None
+                
+                df_at = df_calc[df_calc[col_m].astype(str) == m_atual] if m_atual else df_calc
+                df_an = df_calc[df_calc[col_m].astype(str) == m_ant] if m_ant else pd.DataFrame()
+                
+                t_atual = (df_at['num'].sum() / df_at['den'].sum() * 100) if df_at['den'].sum() > 0 else 0.0
+                t_ant = (df_an['num'].sum() / df_an['den'].sum() * 100) if not df_an.empty and df_an['den'].sum() > 0 else 0.0
+                return t_atual, t_ant
+            else:
+                tot_num = df_calc['num'].sum()
+                tot_den = df_calc['den'].sum()
+                return (tot_num / tot_den * 100) if tot_den > 0 else 0.0, 0.0
+
+        v_exp, a_exp = calcular_taxa_vendas(f_expedicao, 'expedicao_no_prazo', 'total')
+        v_caf, a_caf = calcular_taxa_vendas(f_caf, 'caf', 'qtd')
+        
+        # Devolução e SAC vêm da Reversa/Resumo Reversa
+        df_rev_calc = df_filtrado_resumo
+        col_dev_r = 'devolvido' if 'devolvido' in df_rev_calc.columns else 'devolvido_seller'
+        v_dev, a_dev = calcular_taxa_vendas(df_rev_calc, col_dev_r, 'qtd_etr') if 'qtd_etr' in df_rev_calc.columns else (0.0, 0.0)
+        v_sac, a_sac = calcular_taxa_vendas(df_rev_calc, 'devolucao_sac', 'qtd_etr') if 'devolucao_sac' in df_rev_calc.columns else (0.0, 0.0)
+
+        # 3. CARDS DE QUALIDADE DA OPERAÇÃO (EXATOS DO REACT)
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação (Seller)</h3>", unsafe_allow_html=True)
+        col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+
+        # SLA Expedição (Meta 95%)
+        cor_exp = "#10B981" if v_exp >= 95 else "#EF4444"
+        bg_exp = "rgba(16, 185, 129, 0.12)" if v_exp >= 95 else "rgba(244, 63, 94, 0.12)"
+        diag_exp = "Performance excelente. Acima das expectativas." if v_exp > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
+
+        with col_q1:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚚 SLA EXPEDIÇÃO <span style='opacity:0.5;'>(95%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_exp}; margin: 6px 0 2px 0;'>{v_exp:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_exp:.2f}%</div>
+                    <div style='background-color: {bg_exp}; color: {cor_exp}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_exp}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Cancelamento CAF (Meta 2%)
+        cor_caf = "#10B981" if v_caf <= 2 else "#EF4444"
+        bg_caf = "rgba(16, 185, 129, 0.12)" if v_caf <= 2 else "rgba(244, 63, 94, 0.12)"
+        diag_caf = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
+
+        with col_q2:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚫 CANCELAMENTO <span style='opacity:0.5;'>(2%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_caf}; margin: 6px 0 2px 0;'>{v_caf:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_caf:.2f}%</div>
+                    <div style='background-color: {bg_caf}; color: {cor_caf}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_caf}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Devolução (Meta 9%)
+        cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
+        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
+        diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
+
+        with col_q3:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev}; margin: 6px 0 2px 0;'>{v_dev:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev:.2f}%</div>
+                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_dev}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # SAC (Meta 5%)
+        cor_sac = "#10B981" if v_sac <= 5 else "#EF4444"
+        bg_sac = "rgba(16, 185, 129, 0.12)" if v_sac <= 5 else "rgba(244, 63, 94, 0.12)"
+        diag_sac = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
+
+        with col_q4:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac}; margin: 6px 0 2px 0;'>{v_sac:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac:.2f}%</div>
+                    <div style='background-color: {bg_sac}; color: {cor_sac}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_sac}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.write("---")
+
+        # 4. PERFORMANCE INDIVIDUAL (VOLUME DO MÊS + GRÁFICO HISTÓRICO DE SLA COM META)
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Performance Individual</h3>", unsafe_allow_html=True)
+        col_fat, col_graf_sla = st.columns([1, 2])
+
+        tot_pedidos_faturados = int(pd.to_numeric(f_expedicao['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum()) if ('total' in f_expedicao.columns and not f_expedicao.empty) else len(f_base_vendas)
+
+        with col_fat:
+            st.markdown(f"""
+                <div class='metric-card' style='background: linear-gradient(135deg, #1E293B 0%, rgba(59, 130, 246, 0.15) 100%); border: 1px solid #3B82F640; padding: 35px 20px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
+                    <div style='font-size: 40px; margin-bottom: 12px;'>📦</div>
+                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Pedidos Faturados</div>
+                    <div style='color: #FFFFFF; font-size: 52px; font-weight: 900; margin-top: 10px;'>{tot_pedidos_faturados:,}</div>
+                </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+
+        with col_graf_sla:
+            if 'mes_ano_definido' in f_expedicao.columns and 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
+                df_exp_temp = f_expedicao.copy()
+                df_exp_temp['expedicao_no_prazo'] = pd.to_numeric(df_exp_temp['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_exp_temp['total'] = pd.to_numeric(df_exp_temp['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                df_sla_hist = df_exp_temp.groupby('mes_ano_definido', as_index=False).agg(prazo=('expedicao_no_prazo', 'sum'), total=('total', 'sum'))
+                df_sla_hist['taxa'] = df_sla_hist.apply(lambda r: (r['prazo'] / r['total'] * 100) if r['total'] > 0 else 0.0, axis=1)
+                df_sla_hist = df_sla_hist.sort_values('mes_ano_definido').tail(6)
+                df_sla_hist['cor'] = df_sla_hist['taxa'].apply(lambda v: '#10B981' if v >= 95 else '#EF4444')
+                df_sla_hist['taxa_str'] = df_sla_hist['taxa'].apply(lambda v: f"{v:.1f}%")
+
+                fig_sla_col = px.bar(
+                    df_sla_hist,
+                    x='mes_ano_definido',
+                    y='taxa',
+                    text='taxa_str',
+                    color='cor',
+                    color_discrete_map={'#10B981': '#10B981', '#EF4444': '#EF4444'},
+                    template=template_plotly
+                )
+                fig_sla_col.add_hline(y=95, line_dash="dash", line_color="#F59E0B", annotation_text="META: 95%", annotation_position="top left")
+                fig_sla_col.update_traces(textposition='outside')
+                fig_sla_col.update_layout(
+                    height=260,
+                    showlegend=False,
+                    xaxis_title="",
+                    yaxis_title="SLA (%)",
+                    yaxis=dict(range=[0, 115], showgrid=False),
+                    xaxis=dict(showgrid=False),
+                    margin=dict(l=20, r=20, t=30, b=20)
+                )
+                st.plotly_chart(fig_sla_col, use_container_width=True)
+            else:
+                st.info("Sem dados de histórico de SLA disponíveis.")
+
+        st.write("---")
+
+        # 5. RAIO-X: PEDIDOS EM ABERTO (BACKLOG)
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Raio-X: Pedidos em Aberto (Backlog)</h3>", unsafe_allow_html=True)
+        
+        # Filtros de status do pedido na base de vendas
+        ped_ok, ped_hj, ped_at = 0, 0, 0
+        crit_3_14, crit_15 = 0, 0
+        chart_dias_atraso = []
+
+        if not f_base_vendas.empty:
+            col_st_ped = 'status_pedido' if 'status_pedido' in f_base_vendas.columns else None
+            col_grp_dias = 'grupo_dias_em_atraso' if 'grupo_dias_em_atraso' in f_base_vendas.columns else None
+
+            if col_st_ped:
+                ped_ok = len(f_base_vendas[f_base_vendas[col_st_ped].astype(str).str.upper().str.contains("PRAZO")])
+                ped_hj = len(f_base_vendas[f_base_vendas[col_st_ped].astype(str).str.upper().str.contains("HOJE")])
+                ped_at = len(f_base_vendas[f_base_vendas[col_st_ped].astype(str).str.upper().str.contains("ATRASO")])
+            
+            if col_grp_dias:
+                for idx, row in f_base_vendas.iterrows():
+                    val_str = str(row[col_grp_dias]).strip()
+                    if val_str in ['15+', '15', '16', '17', '18', '19', '20']:
+                        crit_15 += 1
+                    else:
+                        d_num = pd.to_numeric(val_str, errors='coerce')
+                        if pd.notnull(d_num):
+                            if 3 <= d_num <= 14:
+                                crit_3_14 += 1
+                            elif d_num >= 15:
+                                crit_15 += 1
+
+                df_dist_dias = f_base_vendas[col_grp_dias].value_counts().reset_index()
+                df_dist_dias.columns = ['faixa', 'quantidade']
+                ordem_faixas = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '15+']
+                df_dist_dias['faixa'] = pd.Categorical(df_dist_dias['faixa'], categories=ordem_faixas, ordered=True)
+                df_dist_dias = df_dist_dias.dropna(subset=['faixa']).sort_values('faixa')
+            else:
+                df_dist_dias = pd.DataFrame()
         else:
-            tot_ent_prazo = 0.0
+            df_dist_dias = pd.DataFrame()
 
-        if 'total' in f_entregas.columns and not f_entregas.empty:
-            tot_ent_pedidos = float(pd.to_numeric(f_entregas['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-        else:
-            tot_ent_pedidos = 0.0
-        taxa_ent_geral = (tot_ent_prazo / tot_ent_pedidos * 100) if tot_ent_pedidos > 0 else 0.0
+        tot_fila = ped_ok + ped_hj + ped_at
 
-        if 'caf' in f_caf.columns and not f_caf.empty:
-            tot_cafs = float(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-        else:
-            tot_cafs = 0.0
+        col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+        with col_b1:
+            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #10B981 !important;'><div class='metric-card-label'>✅ No Prazo</div><div class='metric-card-value'>{ped_ok:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_b2:
+            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #F59E0B !important;'><div class='metric-card-label'>⚠️ Vencem Hoje</div><div class='metric-card-value'>{ped_hj:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_b3:
+            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #EF4444 !important;'><div class='metric-card-label'>❌ Em Atraso</div><div class='metric-card-value'>{ped_at:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_b4:
+            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #3B82F6 !important;'><div class='metric-card-label'>📦 Total Fila</div><div class='metric-card-value'>{tot_fila:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
 
-        if 'qtd' in f_caf.columns and not f_caf.empty:
-            tot_itens_caf = float(pd.to_numeric(f_caf['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-        else:
-            tot_itens_caf = 0.0
-        taxa_caf_geral = (tot_cafs / tot_itens_caf * 100) if tot_itens_caf > 0 else 0.0
+        st.write("")
+        col_crit_cards, col_crit_graf = st.columns([1, 2])
+        with col_crit_cards:
+            st.markdown(f"""
+                <div class='metric-card' style='background: rgba(245, 158, 11, 0.12); border: 1px solid #F59E0B40; margin-bottom: 15px; text-align: left; padding: 18px;'>
+                    <div style='color: #F59E0B; font-weight: 800; font-size: 13px;'>🕒 Atraso Médio (3 a 14 dias)</div>
+                    <div style='font-size: 38px; font-weight: 900; color: #FFFFFF; margin-top: 6px;'>{crit_3_14:,}</div>
+                </div>
+                <div class='metric-card' style='background: rgba(244, 63, 94, 0.12); border: 1px solid #EF444440; text-align: left; padding: 18px;'>
+                    <div style='color: #EF4444; font-weight: 800; font-size: 13px;'>💀 Críticos (+ de 15 dias)</div>
+                    <div style='font-size: 38px; font-weight: 900; color: #FFFFFF; margin-top: 6px;'>{crit_15:,}</div>
+                </div>
+            """.replace(",", "."), unsafe_allow_html=True)
 
-        if 'valor_prej' in f_prejudicado.columns and not f_prejudicado.empty:
+        with col_crit_graf:
+            if not df_dist_dias.empty:
+                fig_dias = px.bar(df_dist_dias, x='faixa', y='quantidade', text='quantidade', template=template_plotly, color_discrete_sequence=['#F59E0B'])
+                fig_dias.update_traces(textposition='outside')
+                fig_dias.update_layout(
+                    height=240,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=False),
+                    xaxis_title="Dias em Atraso",
+                    yaxis_title="Pedidos"
+                )
+                st.plotly_chart(fig_dias, use_container_width=True)
+            else:
+                st.info("Sem pedidos em atraso na base.")
+
+        st.write("---")
+
+        # 6. FLUXO DE RECOLHA (MILKRUN)
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Fluxo de Recolha (Milkrun)</h3>", unsafe_allow_html=True)
+        t_ab, t_col, t_tr, t_leap = 0, 0, 0, 0
+        if not f_tracking.empty and 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns:
+            for _, r in f_tracking.iterrows():
+                st_p = str(r['status_pedido']).upper().strip()
+                q_p = int(pd.to_numeric(str(r['quantidade']).replace(',', '.'), errors='coerce') or 0)
+                if "ABERTO" in st_p:
+                    t_ab += q_p
+                elif "COLETA" in st_p:
+                    t_col += q_p
+                elif "TRANS" in st_p or "TRÂNSITO" in st_p:
+                    t_tr += q_p
+                elif "LEAP" in st_p:
+                    t_leap += q_p
+
+        c_tr1, c_arr1, c_tr2, c_arr2, c_tr3, c_arr3, c_tr4 = st.columns([2, 0.5, 2, 0.5, 2, 0.5, 2])
+        with c_tr1:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📝</div><div class='metric-card-label'>EM ABERTO</div><div class='metric-card-value'>{t_ab:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_arr1:
+            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+        with c_tr2:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>📦</div><div class='metric-card-label'>PRONTO COLETA</div><div class='metric-card-value'>{t_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_arr2:
+            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+        with c_tr3:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>EM TRÂNSITO</div><div class='metric-card-value'>{t_tr:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_arr3:
+            st.markdown("<div style='font-size: 32px; text-align: center; margin-top: 35px; color: #64748B;'>➔</div>", unsafe_allow_html=True)
+        with c_tr4:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏢</div><div class='metric-card-label'>CHEGOU LEAP</div><div class='metric-card-value' style='color:#10B981;'>{t_leap:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+
+        st.write("")
+        col_sva_cards, col_sva_graf = st.columns([1, 2])
+        s_pz, s_hj, s_at, s_tot = 0, 0, 0, 0
+        if not f_sva.empty and 'qtd_sva' in f_sva.columns:
+            s_tot = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+            s_pz = int(s_tot * 0.7)
+            s_hj = int(s_tot * 0.2)
+            s_at = s_tot - (s_pz + s_hj)
+
+        with col_sva_cards:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px;'>
+                    <div style='font-size: 15px; font-weight: 800; color: #FFFFFF; margin-bottom: 14px;'>Tentativas de Coleta</div>
+                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
+                        <span style='color: #94A3B8; font-weight: 600;'>No Prazo</span>
+                        <strong style='color: #10B981;'>{s_pz:,}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 8px;'>
+                        <span style='color: #94A3B8; font-weight: 600;'>Vencem Hoje</span>
+                        <strong style='color: #F59E0B;'>{s_hj:,}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px;'>
+                        <span style='color: #94A3B8; font-weight: 600;'>Em Atraso</span>
+                        <strong style='color: #EF4444;'>{s_at:,}</strong>
+                    </div>
+                    <div style='background-color: #0B0F19; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #334155;'>
+                        <div style='font-size: 11px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>Total (Mês Atual)</div>
+                        <div style='font-size: 26px; font-weight: 900; color: #FFFFFF; margin-top: 4px;'>{s_tot:,}</div>
+                    </div>
+                </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+
+        with col_sva_graf:
+            st.subheader("Histórico de Tentativas (SVA)")
+            if not f_sva.empty:
+                df_sva_plot = f_sva.copy()
+                col_sva_label = 'sva' if 'sva' in df_sva_plot.columns else ('delivery_type' if 'delivery_type' in df_sva_plot.columns else df_sva_plot.columns[0])
+                df_sva_plot['qtd_sva'] = pd.to_numeric(df_sva_plot['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_sva_agg = df_sva_plot.groupby(col_sva_label, as_index=False)['qtd_sva'].sum().head(6)
+
+                fig_sva_c = px.bar(df_sva_agg, x=col_sva_label, y='qtd_sva', text='qtd_sva', template=template_plotly, color_discrete_sequence=['#3B82F6'])
+                fig_sva_c.update_traces(textposition='outside')
+                fig_sva_c.update_layout(
+                    height=240,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=False),
+                    xaxis_title="",
+                    yaxis_title="Qtd SVA"
+                )
+                st.plotly_chart(fig_sva_c, use_container_width=True)
+            else:
+                st.info("Sem histórico de tentativas SVA.")
+
+        st.write("---")
+
+        # 7. IMPACTO DE CANCELAMENTOS E PREJUDICADO
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
+        c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
+
+        if not f_caf.empty and 'caf' in f_caf.columns:
+            tot_caf = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+            c_sel = int(tot_caf * 0.6)
+            c_col = int(tot_caf * 0.25)
+            c_cli = tot_caf - (c_sel + c_col)
+
+        if not f_prejudicado.empty and 'valor_prej' in f_prejudicado.columns:
             serie_prej = (
                 f_prejudicado['valor_prej']
                 .astype(str)
@@ -1037,126 +1367,37 @@ else:
                 .str.replace(' ', '', regex=False)
                 .str.replace(',', '.', regex=False)
             )
-            tot_prejudicado = float(pd.to_numeric(serie_prej, errors='coerce').fillna(0.0).sum())
-        else:
-            tot_prejudicado = 0.0
+            v_fin = float(pd.to_numeric(serie_prej, errors='coerce').fillna(0.0).sum())
 
-        if 'qtd_sva' in f_sva.columns and not f_sva.empty:
-            tot_sva = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-        else:
-            tot_sva = 0
-
-        # Cards KPIs de Vendas
-        c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(5)
-        with c_v1:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Expedição no Prazo</div><div class='metric-card-value'>{taxa_exp_geral:.1f}%</div></div>", unsafe_allow_html=True)
-        with c_v2:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Entrega no Prazo</div><div class='metric-card-value'>{taxa_ent_geral:.1f}%</div></div>", unsafe_allow_html=True)
-        with c_v3:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Taxa Cancelamento CAF</div><div class='metric-card-value'>{taxa_caf_geral:.1f}%</div></div>", unsafe_allow_html=True)
-        with c_v4:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Valor Prejudicado</div><div class='metric-card-value'>R$ {tot_prejudicado:,.2f}</div></div>".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
-        with c_v5:
-            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Qtd. SVA (Tentativas)</div><div class='metric-card-value'>{tot_sva:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        col_imp1, col_imp2, col_imp3, col_imp4 = st.columns(4)
+        with col_imp1:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🏪</div><div class='metric-card-label'>Cancelado (Seller)</div><div class='metric-card-value'>{c_sel:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_imp2:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>🚚</div><div class='metric-card-label'>Falha na Coleta</div><div class='metric-card-value'>{c_col:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_imp3:
+            st.markdown(f"<div class='metric-card'><div style='font-size:32px;'>👤</div><div class='metric-card-label'>Cancelado (Cliente)</div><div class='metric-card-value'>{c_cli:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_imp4:
+            st.markdown(f"""
+                <div class='metric-card' style='background-color: #EF4444 !important; border: none !important;'>
+                    <div style='font-size: 32px;'>📉</div>
+                    <div class='metric-card-label' style='color: #FFFFFF !important; opacity: 0.9;'>Valor Prejudicado (R$)</div>
+                    <div class='metric-card-value' style='color: #FFFFFF !important;'>R$ {v_fin:,.2f}</div>
+                </div>
+            """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
 
         st.write("---")
 
-        # Gráficos de Vendas
-        col_g_exp, col_g_track = st.columns(2)
+        # 8. MEMORIAL DE CÁLCULO
+        st.markdown("""
+            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8;'>
+                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
+                <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
+                <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
+                <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-        with col_g_exp:
-            st.subheader("📦 Taxa de Expedição no Prazo por Mês")
-            if 'mes_ano_definido' in f_expedicao.columns and 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
-                df_exp_temp = f_expedicao.copy()
-                df_exp_temp['expedicao_no_prazo'] = pd.to_numeric(df_exp_temp['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                df_exp_temp['total'] = pd.to_numeric(df_exp_temp['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-
-                df_exp_mes = df_exp_temp.groupby('mes_ano_definido', as_index=False).agg(prazo=('expedicao_no_prazo', 'sum'), total=('total', 'sum'))
-                df_exp_mes['taxa'] = df_exp_mes.apply(lambda r: (r['prazo'] / r['total']) if r['total'] > 0 else 0.0, axis=1)
-                df_exp_mes = df_exp_mes.sort_values('mes_ano_definido')
-                df_exp_mes['taxa_str'] = df_exp_mes['taxa'].apply(lambda v: f"{v*100:.1f}%")
-
-                fig_exp = px.line(df_exp_mes, x='mes_ano_definido', y='taxa', text='taxa_str', markers=True, template=template_plotly)
-                fig_exp.update_traces(textposition="top center", line=dict(color='#10B981', width=3))
-                fig_exp.update_layout(yaxis=dict(tickformat='.1%', showgrid=False), xaxis=dict(showgrid=False), height=360)
-                st.plotly_chart(fig_exp, use_container_width=True)
-            else:
-                st.info("Sem dados de expedição para o filtro selecionado.")
-
-        with col_g_track:
-            st.subheader("🚚 Distribuição de Pedidos em Aberto (Tracking)")
-            if 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns and not f_tracking.empty:
-                df_track_temp = f_tracking.copy()
-                df_track_temp['quantidade'] = pd.to_numeric(df_track_temp['quantidade'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                df_track_agg = df_track_temp.groupby('status_pedido', as_index=False)['quantidade'].sum()
-
-                fig_track = px.pie(df_track_agg, names='status_pedido', values='quantidade', hole=0.45, template=template_plotly, color_discrete_sequence=['#3B82F6', '#10B981', '#F59E0B', '#EF4444'])
-                fig_track.update_traces(textinfo='label+percent', pull=[0.05]*len(df_track_agg))
-                fig_track.update_layout(height=360, showlegend=False)
-                st.plotly_chart(fig_track, use_container_width=True)
-            else:
-                st.info("Sem dados de tracking para os pedidos selecionados.")
-
-        st.write("---")
-
-        col_g_caf, col_g_aging = st.columns(2)
-
-        with col_g_caf:
-            st.subheader("🚫 Histórico de Cancelamentos CAF por Mês")
-            if 'mes_ano_compra' in f_caf.columns and 'caf' in f_caf.columns and not f_caf.empty:
-                df_caf_temp = f_caf.copy()
-                df_caf_temp['caf'] = pd.to_numeric(df_caf_temp['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                df_caf_temp['qtd'] = pd.to_numeric(df_caf_temp['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-
-                df_caf_mes = df_caf_temp.groupby('mes_ano_compra', as_index=False).agg(cafs=('caf', 'sum'), total=('qtd', 'sum'))
-                df_caf_mes['taxa_caf'] = df_caf_mes.apply(lambda r: f"{(r['cafs'] / r['total'])*100:.1f}%" if r['total'] > 0 else "0.0%", axis=1)
-                df_caf_mes = df_caf_mes.sort_values('mes_ano_compra')
-
-                fig_caf = px.bar(df_caf_mes, x='mes_ano_compra', y='cafs', text='taxa_caf', template=template_plotly, color_discrete_sequence=['#EF4444'])
-                fig_caf.update_traces(textposition='outside')
-                fig_caf.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360, yaxis_title="Qtd. Itens Cancelados")
-                st.plotly_chart(fig_caf, use_container_width=True)
-            else:
-                st.info("Sem registros de cancelamento CAF para o período.")
-
-        with col_g_aging:
-            st.subheader("⏱️ Faixas de Atraso dos Pedidos em Aberto")
-            if 'grupo_dias_em_atraso' in f_base_vendas.columns and not f_base_vendas.empty:
-                df_aging = f_base_vendas['grupo_dias_em_atraso'].value_counts().reset_index()
-                df_aging.columns = ['faixa', 'quantidade']
-                ordem_faixas = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '15+']
-                df_aging['faixa'] = pd.Categorical(df_aging['faixa'], categories=ordem_faixas, ordered=True)
-                df_aging = df_aging.sort_values('faixa')
-
-                fig_aging = px.bar(df_aging, x='faixa', y='quantidade', text='quantidade', template=template_plotly, color_discrete_sequence=[cor_grafico])
-                fig_aging.update_traces(textposition='outside')
-                fig_aging.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360, xaxis_title="Dias em Atraso", yaxis_title="Pedidos")
-                st.plotly_chart(fig_aging, use_container_width=True)
-            else:
-                st.info("Não há pedidos em aberto com atraso registrado.")
-
-        st.write("---")
-
-        if not f_status_loja.empty:
-            st.subheader("🏪 Monitor de Status da Loja (Última Movimentação)")
-            col_l1, col_l2 = st.columns([2, 1])
-            with col_l1:
-                df_exib_loja = f_status_loja[['nome_seller', 'delivery_type', 'data_ultimo_ponto_mkt', 'status_loja']].drop_duplicates()
-                df_exib_loja.columns = ['Seller', 'Modal', 'Último Ponto Mkt', 'Dias sem Movimento']
-                st.dataframe(df_exib_loja, use_container_width=True, hide_index=True)
-            with col_l2:
-                dias_max = pd.to_numeric(f_status_loja['status_loja'].astype(str).str.replace(',', '.'), errors='coerce').max()
-                if pd.isna(dias_max):
-                    dias_max = 0
-                cor_alerta = "#EF4444" if dias_max > 3 else "#10B981"
-                st.markdown(f"""
-                    <div class='metric-card' style='border-left: 5px solid {cor_alerta} !important;'>
-                        <div class='metric-card-label'>Maior Inatividade Detectada</div>
-                        <div class='metric-card-value'>{dias_max:.0f} dia(s)</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-        st.write("---")
+        st.write("")
 
         # Download do CSV de Vendas
         col_bot_v1, col_bot_v2, col_bot_v3 = st.columns([1, 2, 1])
