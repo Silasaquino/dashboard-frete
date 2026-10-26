@@ -568,7 +568,102 @@ else:
             unsafe_allow_html=True
         )
 
-        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO (APENAS PARA A BASE DETALHADA)
+        # ----------------------------------------------------
+        # 1. CARDS DE QUALIDADE DA OPERAÇÃO (SELLER) NA REVERSA
+        # ----------------------------------------------------
+        # Calcula as 4 métricas oficiais com a regra do dia 04 vs dia 05
+        f_exp_rev = df_res_expedicao.copy()
+        f_caf_rev = df_res_caf.copy()
+        if target_seller != "Todos":
+            if 'nome_seller' in f_exp_rev.columns:
+                f_exp_rev = f_exp_rev[f_exp_rev['nome_seller'].astype(str).str.strip().str.upper() == target_str]
+            if 'nome_seller' in f_caf_rev.columns:
+                f_caf_rev = f_caf_rev[f_caf_rev['nome_seller'].astype(str).str.strip().str.upper() == target_str]
+        if modal_selecionado != "GERAL":
+            if 'delivery_type' in f_exp_rev.columns:
+                f_exp_rev = f_exp_rev[f_exp_rev['delivery_type'].astype(str).str.strip().str.upper() == modal_selecionado.upper()]
+            if 'delivery_type' in f_caf_rev.columns:
+                f_caf_rev = f_caf_rev[f_caf_rev['delivery_type'].astype(str).str.strip().str.upper() == modal_selecionado.upper()]
+
+        v_exp, a_exp = calcular_taxas_com_corte(f_exp_rev, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
+        v_caf, a_caf = calcular_taxas_com_corte(f_caf_rev, 'caf', 'qtd', 'mes_ano_compra')
+
+        col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
+        v_dev, a_dev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
+        v_sac, a_sac = calcular_taxas_com_corte(df_filtrado_resumo, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
+
+        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação (Seller)</h3>", unsafe_allow_html=True)
+        col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+
+        cor_exp = "#10B981" if v_exp >= 95 else "#EF4444"
+        bg_exp = "rgba(16, 185, 129, 0.12)" if v_exp >= 95 else "rgba(244, 63, 94, 0.12)"
+        diag_exp = "Performance excelente. Acima das expectativas." if v_exp > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
+
+        with col_q1:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚚 SLA EXPEDIÇÃO <span style='opacity:0.5;'>(95%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_exp}; margin: 6px 0 2px 0;'>{v_exp:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_exp:.2f}%</div>
+                    <div style='background-color: {bg_exp}; color: {cor_exp}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_exp}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        cor_caf = "#10B981" if v_caf <= 2 else "#EF4444"
+        bg_caf = "rgba(16, 185, 129, 0.12)" if v_caf <= 2 else "rgba(244, 63, 94, 0.12)"
+        diag_caf = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
+
+        with col_q2:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚫 CANCELAMENTO <span style='opacity:0.5;'>(2%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_caf}; margin: 6px 0 2px 0;'>{v_caf:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_caf:.2f}%</div>
+                    <div style='background-color: {bg_caf}; color: {cor_caf}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_caf}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
+        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
+        diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
+
+        with col_q3:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev}; margin: 6px 0 2px 0;'>{v_dev:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev:.2f}%</div>
+                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_dev}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        cor_sac = "#10B981" if v_sac <= 5 else "#EF4444"
+        bg_sac = "rgba(16, 185, 129, 0.12)" if v_sac <= 5 else "rgba(244, 63, 94, 0.12)"
+        diag_sac = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
+
+        with col_q4:
+            st.markdown(f"""
+                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
+                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac}; margin: 6px 0 2px 0;'>{v_sac:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac:.2f}%</div>
+                    <div style='background-color: {bg_sac}; color: {cor_sac}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_sac}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.write("---")
+
+        # ----------------------------------------------------
+        # 2. FILTRO DE VISÃO E PERÍODO (BASE DETALHADA)
+        # ----------------------------------------------------
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
 
         with col_filtro_tipo:
@@ -608,9 +703,9 @@ else:
 
         st.write("")
 
-        # ==========================================
-        # KPIS PRINCIPAIS (ORIGINAL ESTÁVEL)
-        # ==========================================
+        # ----------------------------------------------------
+        # 3. KPIS DA BASE OPERACIONAL DETALHADA
+        # ----------------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
         qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
@@ -625,9 +720,9 @@ else:
 
         st.write("---")
 
-        # ==========================================
-        # BLOCO: EVOLUÇÃO MENSAL HISTÓRICA COMPLETA + TOP SELLERS COM taxa_devolucao
-        # ==========================================
+        # ----------------------------------------------------
+        # 4. GRÁFICOS: EVOLUÇÃO MENSAL E TOP SELLERS (HISTÓRICO COMPLETO)
+        # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
 
@@ -639,7 +734,6 @@ else:
             col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
             col_dev = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
 
-            # Agrupamento temporal histórico completo usando a folha RESUMO REVERSA
             if 'mes_ano_definido' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_resumo_temp = df_filtrado_resumo.copy()
                 
@@ -706,13 +800,10 @@ else:
                     )
                     st.plotly_chart(fig_linha_taxa, use_container_width=True)
                 else:
-                    st.info("Sem dados de evolução histórica disponíveis para esta seleção.")
+                    st.info("Sem dados de evolução histórica disponíveis.")
             else:
                 st.info("Sem dados de resumo registrados para o Seller selecionado no período.")
 
-        # ==========================================
-        # TOP SELLERS CALCULADO POR taxa_devolucao (CONCLUÍDO)
-        # ==========================================
         with col_graf4:
             st.subheader("⚠️ Top Sellers - Maior % Taxa de Devolução")
             col_taxa_alvo = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
@@ -720,7 +811,6 @@ else:
             if 'nome_seller' in df_filtrado_resumo.columns and (col_taxa_alvo in df_filtrado_resumo.columns or ('qtd_etr' in df_filtrado_resumo.columns and col_dev in df_filtrado_resumo.columns)) and not df_filtrado_resumo.empty:
                 df_top_temp = df_filtrado_resumo.copy()
                 
-                # Cálculo ponderado da taxa de devolução concluída
                 if 'qtd_etr' in df_top_temp.columns and col_dev in df_top_temp.columns:
                     df_top_temp['qtd_etr_n'] = pd.to_numeric(df_top_temp['qtd_etr'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
                     df_top_temp['col_dev_n'] = pd.to_numeric(df_top_temp[col_dev].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
@@ -785,69 +875,144 @@ else:
 
         st.write("---")
 
-        # ==========================================
-        # BLOCO: DISTRIBUIÇÃO E MOTIVOS
-        # ==========================================
-        col_rage_graf, col_mot_graf = st.columns([1, 1])
+        # ----------------------------------------------------
+        # 5. GRÁFICOS: VOLUME MENSAL, MOTIVOS E FAIXAS DE ATRASO
+        # ----------------------------------------------------
+        st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
+        st.write("")
 
-        with col_rage_graf:
-            st.subheader("⏱️ Faixas de Atraso no Seller (+5 Dias)")
-            if 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-                df_dist_aging_rev = df_base_reversa_periodo['grupo_aberto_seller'].value_counts().reset_index()
-                df_dist_aging_rev.columns = ['faixa', 'quantidade']
-                df_dist_aging_rev['faixa'] = df_dist_aging_rev['faixa'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("+5" in g or "5+" in g) else g)
-                df_dist_aging_rev = df_dist_aging_rev.groupby('faixa', as_index=False)['quantidade'].sum()
-
-                fig_age_r = px.bar(
-                    df_dist_aging_rev,
-                    x='faixa',
-                    y='quantidade',
-                    text='quantidade',
-                    template=template_plotly,
-                    color='faixa',
-                    color_discrete_map={
-                        '0 DIAS CORRIDOS': '#94A3B8',
-                        '1 DIAS CORRIDOS': '#60A5FA',
-                        '2 DIAS CORRIDOS': '#3B82F6',
-                        '3 DIAS CORRIDOS': '#F59E0B',
-                        '4 DIAS CORRIDOS': '#F97316',
-                        '5 DIAS CORRIDOS': '#EF4444',
-                        '⚠️ +5 DIAS CORRIDOS': '#DC2626'
-                    }
-                )
-                fig_age_r.update_traces(textposition='outside')
-                fig_age_r.update_layout(height=320, showlegend=False, xaxis_title="", yaxis_title="Remessas", margin=dict(l=20, r=20, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
-                st.plotly_chart(fig_age_r, use_container_width=True)
+        st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
+        col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+        
+        if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+            df_temp = df_filtrado_reversa[[col_mes_grafico, colunas_existentes[0]]].dropna() if colunas_existentes else df_filtrado_reversa[[col_mes_grafico]].dropna()
+            
+            if colunas_existentes:
+                df_grafico_mes = df_temp.groupby(col_mes_grafico, as_index=False)[colunas_existentes[0]].nunique()
+                df_grafico_mes.columns = [col_mes_grafico, 'qtd_remessas_unicas']
             else:
-                st.info("Sem dados de pacotes entregues pendentes de conferência.")
+                df_grafico_mes = df_temp.groupby(col_mes_grafico, as_index=False).size()
+                df_grafico_mes.columns = [col_mes_grafico, 'qtd_remessas_unicas']
 
-        with col_mot_graf:
-            st.subheader("🔍 Principais Motivos de Troca / Devolução")
+            df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+
+            fig_tempo = px.bar(
+                df_grafico_mes,
+                x=col_mes_grafico,
+                y='qtd_remessas_unicas',
+                text='qtd_remessas_unicas',
+                template=template_plotly,
+                color_discrete_sequence=[cor_grafico]
+            )
+            fig_tempo.update_traces(texttemplate='%{text:,}', textposition='outside')
+            fig_tempo.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=20, r=20, t=30, b=20),
+                height=350,
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=False),
+                xaxis_title="",
+                yaxis_title="Remessas Únicas"
+            )
+            st.plotly_chart(fig_tempo, use_container_width=True)
+
+        st.write("")
+        col_graf_mot, col_graf_grupo = st.columns(2)
+
+        with col_graf_mot:
+            st.subheader("🔍 Principais Motivos de Troca")
             if 'motivo_troca' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-                df_motivos = df_base_reversa_periodo['motivo_troca'].value_counts().head(8).reset_index()
+                df_motivos = df_base_reversa_periodo['motivo_troca'].value_counts().head(10).reset_index()
                 df_motivos.columns = ['motivo', 'quantidade']
+                total_motivos = df_motivos['quantidade'].sum()
                 df_motivos = df_motivos.sort_values('quantidade', ascending=True)
+
+                df_motivos['rotulo'] = df_motivos['quantidade'].apply(
+                    lambda v: f"{v:,} ({(v / total_motivos) * 100:.1f}%)".replace(",", ".") if total_motivos > 0 else "0"
+                )
 
                 fig_motivos = px.bar(
                     df_motivos,
                     x='quantidade',
                     y='motivo',
-                    text='quantidade',
+                    text='rotulo',
                     orientation='h',
                     template=template_plotly,
-                    color_discrete_sequence=['#8B5CF6']
+                    color_discrete_sequence=[cor_grafico]
                 )
+                max_mot = df_motivos['quantidade'].max() if not df_motivos.empty else 100
                 fig_motivos.update_traces(textposition='outside')
-                fig_motivos.update_layout(height=320, xaxis_title="", yaxis_title="", margin=dict(l=20, r=40, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
+                fig_motivos.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=120, t=30, b=20),
+                    height=380,
+                    xaxis=dict(range=[0, max_mot * 1.45], showgrid=False),
+                    yaxis=dict(showgrid=False),
+                    xaxis_title="Remessas Únicas",
+                    yaxis_title=""
+                )
                 st.plotly_chart(fig_motivos, use_container_width=True)
             else:
-                st.info("Sem dados de motivos registrados para o período selecionado.")
+                st.info("Sem dados de motivos registrados.")
 
+        with col_graf_grupo:
+            st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
+            if 'tracking' in df_base_reversa_periodo.columns and 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_entregue_seller = df_base_reversa_periodo[
+                    df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
+                ]
+
+                if not df_entregue_seller.empty:
+                    df_grupo_seller = df_entregue_seller['grupo_aberto_seller'].value_counts().reset_index()
+                    df_grupo_seller.columns = ['grupo_dias', 'quantidade']
+                    total_grupo = df_grupo_seller['quantidade'].sum()
+
+                    df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
+                        lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".") if total_grupo > 0 else "0"
+                    )
+
+                    df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("5 DIAS" in g and "+" in g) else g)
+
+                    fig_grupo_seller = px.bar(
+                        df_grupo_seller,
+                        x='grupo_exibicao',
+                        y='quantidade',
+                        text='rotulo',
+                        template=template_plotly,
+                        color='grupo_exibicao',
+                        color_discrete_map={
+                            '⚠️ +5 DIAS CORRIDOS': '#EF4444',
+                            '0 DIAS CORRIDOS': '#94A3B8',
+                            '1 DIAS CORRIDOS': '#60A5FA',
+                            '2 DIAS CORRIDOS': '#3B82F6',
+                            '3 DIAS CORRIDOS': '#2563EB',
+                            '4 DIAS CORRIDOS': '#1D4ED8',
+                            '5 DIAS CORRIDOS': '#F59E0B'
+                        }
+                    )
+                    max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
+                    fig_grupo_seller.update_traces(textposition='outside')
+                    fig_grupo_seller.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        height=380,
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_grupo_seller, use_container_width=True)
+                else:
+                    st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período selecionado.")
+
+        st.write("")
         st.write("---")
 
-        # ==========================================
-        # JORNADA DO TRACKING SEQUENCIAL
-        # ==========================================
+        # ----------------------------------------------------
+        # 6. JORNADA DO TRACKING SEQUENCIAL
+        # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
             df_tracking = df_base_reversa_periodo['tracking'].value_counts().reset_index()
@@ -906,6 +1071,22 @@ else:
 
         st.write("---")
 
+        # ----------------------------------------------------
+        # 7. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA
+        # ----------------------------------------------------
+        st.markdown("""
+            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8; margin-bottom: 25px;'>
+                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
+                <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
+                <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
+                <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
+                <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # ----------------------------------------------------
+        # 8. DOWNLOAD CSV REVERSA
+        # ----------------------------------------------------
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv = converter_df_para_csv(df_base_reversa_periodo)
@@ -989,78 +1170,78 @@ else:
         """, unsafe_allow_html=True)
 
         # 2. CÁLCULO DAS TAXAS BASEADO NA REGRA DE CORTE (DIA 04 vs DIA 05)
-        v_exp, a_exp = calcular_taxas_com_corte(f_expedicao, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
-        v_caf, a_caf = calcular_taxas_com_corte(f_caf, 'caf', 'qtd', 'mes_ano_compra')
+        v_exp_v, a_exp_v = calcular_taxas_com_corte(f_expedicao, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
+        v_caf_v, a_caf_v = calcular_taxas_com_corte(f_caf, 'caf', 'qtd', 'mes_ano_compra')
 
-        df_rev_res = df_filtrado_resumo
-        col_dev_r = 'devolvido' if 'devolvido' in df_rev_res.columns else 'devolvido_seller'
-        v_dev, a_dev = calcular_taxas_com_corte(df_rev_res, col_dev_r, 'qtd_etr', 'mes_ano_definido')
-        v_sac, a_sac = calcular_taxas_com_corte(df_rev_res, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
+        df_rev_res_v = df_filtrado_resumo
+        col_dev_r_v = 'devolvido' if 'devolvido' in df_rev_res_v.columns else 'devolvido_seller'
+        v_dev_v, a_dev_v = calcular_taxas_com_corte(df_rev_res_v, col_dev_r_v, 'qtd_etr', 'mes_ano_definido')
+        v_sac_v, a_sac_v = calcular_taxas_com_corte(df_rev_res_v, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
 
-        # 3. CARDS DE QUALIDADE DA OPERAÇÃO
+        # 3. CARDS DE QUALIDADE DA OPERAÇÃO (VENDAS)
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação (Seller)</h3>", unsafe_allow_html=True)
-        col_q1, col_q2, col_q3, col_q4 = st.columns(4)
+        col_vq1, col_vq2, col_vq3, col_vq4 = st.columns(4)
 
-        cor_exp = "#10B981" if v_exp >= 95 else "#EF4444"
-        bg_exp = "rgba(16, 185, 129, 0.12)" if v_exp >= 95 else "rgba(244, 63, 94, 0.12)"
-        diag_exp = "Performance excelente. Acima das expectativas." if v_exp > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
+        cor_exp_v = "#10B981" if v_exp_v >= 95 else "#EF4444"
+        bg_exp_v = "rgba(16, 185, 129, 0.12)" if v_exp_v >= 95 else "rgba(244, 63, 94, 0.12)"
+        diag_exp_v = "Performance excelente. Acima das expectativas." if v_exp_v > 98 else ("SLA dentro da meta. Sua operação está saudável." if v_exp_v >= 95 else "Atenção: Seu SLA está abaixo da meta (95%). É necessário agilizar.")
 
-        with col_q1:
+        with col_vq1:
             st.markdown(f"""
                 <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚚 SLA EXPEDIÇÃO <span style='opacity:0.5;'>(95%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_exp}; margin: 6px 0 2px 0;'>{v_exp:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_exp:.2f}%</div>
-                    <div style='background-color: {bg_exp}; color: {cor_exp}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_exp}
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_exp_v}; margin: 6px 0 2px 0;'>{v_exp_v:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_exp_v:.2f}%</div>
+                    <div style='background-color: {bg_exp_v}; color: {cor_exp_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_exp_v}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        cor_caf = "#10B981" if v_caf <= 2 else "#EF4444"
-        bg_caf = "rgba(16, 185, 129, 0.12)" if v_caf <= 2 else "rgba(244, 63, 94, 0.12)"
-        diag_caf = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
+        cor_caf_v = "#10B981" if v_caf_v <= 2 else "#EF4444"
+        bg_caf_v = "rgba(16, 185, 129, 0.12)" if v_caf_v <= 2 else "rgba(244, 63, 94, 0.12)"
+        diag_caf_v = "Sua taxa está dentro da meta! Controle de estoque eficiente." if v_caf_v <= 2 else "O índice de cancelamento está acima do estabelecido. Revisar o estoque."
 
-        with col_q2:
+        with col_vq2:
             st.markdown(f"""
                 <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🚫 CANCELAMENTO <span style='opacity:0.5;'>(2%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_caf}; margin: 6px 0 2px 0;'>{v_caf:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_caf:.2f}%</div>
-                    <div style='background-color: {bg_caf}; color: {cor_caf}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_caf}
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_caf_v}; margin: 6px 0 2px 0;'>{v_caf_v:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_caf_v:.2f}%</div>
+                    <div style='background-color: {bg_caf_v}; color: {cor_caf_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_caf_v}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        cor_dev = "#10B981" if v_dev <= 9 else "#EF4444"
-        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev <= 9 else "rgba(244, 63, 94, 0.12)"
-        diag_dev = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
+        cor_dev_v = "#10B981" if v_dev_v <= 9 else "#EF4444"
+        bg_dev_v = "rgba(16, 185, 129, 0.12)" if v_dev_v <= 9 else "rgba(244, 63, 94, 0.12)"
+        diag_dev_v = "Taxa de devolução dentro do esperado. Monitorização contínua." if v_dev_v <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos."
 
-        with col_q3:
+        with col_vq3:
             st.markdown(f"""
                 <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev}; margin: 6px 0 2px 0;'>{v_dev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev:.2f}%</div>
-                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_dev}
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev_v}; margin: 6px 0 2px 0;'>{v_dev_v:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev_v:.2f}%</div>
+                    <div style='background-color: {bg_dev_v}; color: {cor_dev_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_dev_v}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        cor_sac = "#10B981" if v_sac <= 5 else "#EF4444"
-        bg_sac = "rgba(16, 185, 129, 0.12)" if v_sac <= 5 else "rgba(244, 63, 94, 0.12)"
-        diag_sac = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
+        cor_sac_v = "#10B981" if v_sac_v <= 5 else "#EF4444"
+        bg_sac_v = "rgba(16, 185, 129, 0.12)" if v_sac_v <= 5 else "rgba(244, 63, 94, 0.12)"
+        diag_sac_v = "Taxa de contato dentro da meta. Atendimento sob controle." if v_sac_v <= 5 else "Taxa de contato no SAC acima da meta (5%). Identifique ofensores."
 
-        with col_q4:
+        with col_vq4:
             st.markdown(f"""
                 <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac}; margin: 6px 0 2px 0;'>{v_sac:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac:.2f}%</div>
-                    <div style='background-color: {bg_sac}; color: {cor_sac}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_sac}
+                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac_v}; margin: 6px 0 2px 0;'>{v_sac_v:.2f}%</div>
+                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac_v:.2f}%</div>
+                    <div style='background-color: {bg_sac_v}; color: {cor_sac_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                        {diag_sac_v}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
