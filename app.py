@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 st.set_page_config(page_title="Dashboard Sellers - Redshift", layout="wide")
 
 # ==========================================
-# 1. CONFIGURAÇÃO E AUTENTICAÇÃO PERSISTENTE (F5 RESISTENTE)
+# 1. CONFIGURAÇÃO E AUTENTICAÇÃO PERSISTENTE
 # ==========================================
 
 TEMPO_EXPIRED_MINUTOS = 10
@@ -195,22 +195,17 @@ else:
     @st.cache_data(ttl=1800, show_spinner=False)
     def carregar_dados_reversa():
         lista_dfs = []
-        colunas_desejadas = [
-            'data_solicitacao', 'mes_ano_solicitacao', 'tipo_solicitacao', 'seller_name',
-            'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
-            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'grupo_aberto_seller'
-        ]
         for item in PLANILHAS_REVERSA_BASE:
             sheet_id = item["id"]
             gid = item["gid"]
             df_temp = pd.DataFrame()
             try:
                 url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-                df_temp = pd.read_csv(url_csv, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                df_temp = pd.read_csv(url_csv, low_memory=False)
             except Exception:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
-                    df_temp = pd.read_csv(url_gviz, usecols=lambda c: c in colunas_desejadas, low_memory=False)
+                    df_temp = pd.read_csv(url_gviz, low_memory=False)
                 except Exception:
                     pass
             if not df_temp.empty and len(df_temp.columns) > 1:
@@ -293,7 +288,7 @@ else:
         df_raw_vendas_base = carregar_base_vendas()
 
     # ==========================================
-    # SELEÇÃO SUPERIOR DE SELLER E TEMA (EXATAMENTE COMO NA SEXTA)
+    # SELEÇÃO SUPERIOR DE SELLER, MODAL E TEMA
     # ==========================================
     col_modal_rev_topo, col_seller_topo, col_tema_topo = st.columns([2, 2.5, 1.5])
 
@@ -327,7 +322,6 @@ else:
         st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
-    # Estilos CSS Unificados
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
         cor_grafico = "#60A5FA"
@@ -391,7 +385,7 @@ else:
     ])
 
     # ==========================================
-    # ABA: OPERAÇÃO REVERSA (IDÊNTICA A SEXTA-FEIRA)
+    # ABA: OPERAÇÃO REVERSA COMPLETA
     # ==========================================
     with aba_reversa:
         mask_reversa = pd.Series(True, index=df_raw_reversa.index)
@@ -448,6 +442,9 @@ else:
 
         st.write("")
 
+        # ---------------------------------------------
+        # KPIS PRINCIPAIS (LINHA 1)
+        # ---------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_filtrado_reversa.columns]
         qtd_remessas_unicas = df_filtrado_reversa[colunas_existentes[0]].nunique() if colunas_existentes and not df_filtrado_reversa.empty else len(df_filtrado_reversa)
@@ -460,8 +457,35 @@ else:
         with col_kpi3:
             st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
 
+        st.write("")
+
+        # ---------------------------------------------
+        # CARTÕES DE STATUS DA REVERSA (LINHA 2)
+        # ---------------------------------------------
+        col_dev_s = 'devolvido' if 'devolvido' in df_filtrado_resumo_rev.columns else 'devolvido_seller'
+        tot_devolvido = df_filtrado_resumo_rev[col_dev_s].sum() if col_dev_s in df_filtrado_resumo_rev.columns else 0
+        tot_em_aberto = df_filtrado_resumo_rev['devolucao_em_aberto'].sum() if 'devolucao_em_aberto' in df_filtrado_resumo_rev.columns else 0
+        tot_cancelado = df_filtrado_resumo_rev['devolucao_cancelada'].sum() if 'devolucao_cancelada' in df_filtrado_resumo_rev.columns else 0
+        tot_extravios = df_filtrado_resumo_rev['extravios'].sum() if 'extravios' in df_filtrado_resumo_rev.columns else 0
+        tot_sac = df_filtrado_resumo_rev['devolucao_sac'].sum() if 'devolucao_sac' in df_filtrado_resumo_rev.columns else 0
+
+        c_st1, c_st2, c_st3, c_st4, c_st5 = st.columns(5)
+        with c_st1:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Devolvido ao Seller</div><div class='metric-card-value'>{int(tot_devolvido):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_st2:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Devolução em Aberto</div><div class='metric-card-value'>{int(tot_em_aberto):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_st3:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Devolução Cancelada</div><div class='metric-card-value'>{int(tot_cancelado):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_st4:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Extravios</div><div class='metric-card-value'>{int(tot_extravios):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with c_st5:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Devolução SAC</div><div class='metric-card-value'>{int(tot_sac):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+
         st.write("---")
 
+        # ---------------------------------------------
+        # BLOCO 1 DE GRÁFICOS: EVOLUÇÃO E TOP SELLERS
+        # ---------------------------------------------
         col_graf3, col_graf4 = st.columns(2)
         with col_graf3:
             st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
@@ -516,6 +540,108 @@ else:
             else:
                 st.info("Sem dados em aberto registrados para o Seller selecionado.")
 
+        st.write("---")
+
+        # ---------------------------------------------
+        # BLOCO 2 DE GRÁFICOS: TIPO DE SOLICITAÇÃO E TRACKING
+        # ---------------------------------------------
+        col_g_tipo, col_g_track_rev = st.columns(2)
+
+        with col_g_tipo:
+            st.subheader("🔄 Distribuição por Tipo de Solicitação")
+            if 'tipo_solicitacao' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_tipo_sol = df_filtrado_reversa['tipo_solicitacao'].value_counts().reset_index()
+                df_tipo_sol.columns = ['tipo_solicitacao', 'quantidade']
+                fig_tipo = px.pie(
+                    df_tipo_sol,
+                    names='tipo_solicitacao',
+                    values='quantidade',
+                    hole=0.45,
+                    template=template_plotly,
+                    color_discrete_sequence=['#60A5FA', '#34D399', '#FBBF24', '#F87171']
+                )
+                fig_tipo.update_traces(textinfo='label+percent', pull=[0.03]*len(df_tipo_sol))
+                fig_tipo.update_layout(height=360, showlegend=True)
+                st.plotly_chart(fig_tipo, use_container_width=True)
+            else:
+                st.info("Sem dados de tipo de solicitação.")
+
+        with col_g_track_rev:
+            st.subheader("🚚 Rastreio / Etapas do Tracking da Reversa")
+            if 'tracking' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_track_r = df_filtrado_reversa['tracking'].value_counts().head(8).reset_index()
+                df_track_r.columns = ['tracking', 'quantidade']
+                df_track_r = df_track_r.sort_values('quantidade', ascending=True)
+                fig_tr = px.bar(
+                    df_track_r,
+                    x='quantidade',
+                    y='tracking',
+                    text='quantidade',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=['#3B82F6']
+                )
+                fig_tr.update_traces(textposition='outside')
+                fig_tr.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360)
+                st.plotly_chart(fig_tr, use_container_width=True)
+            else:
+                st.info("Sem dados de tracking disponíveis.")
+
+        st.write("---")
+
+        # ---------------------------------------------
+        # BLOCO 3 DE GRÁFICOS: AGING EM ABERTO E MOTIVOS DE TROCA
+        # ---------------------------------------------
+        col_g_age_rev, col_g_mot = st.columns(2)
+
+        with col_g_age_rev:
+            st.subheader("⏱️ Faixas de Atraso das Devoluções em Aberto")
+            if 'grupo_aberto_seller' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_aging_rev = df_filtrado_reversa['grupo_aberto_seller'].value_counts().reset_index()
+                df_aging_rev.columns = ['faixa', 'quantidade']
+                ordem_faixas = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '15+']
+                df_aging_rev['faixa'] = pd.Categorical(df_aging_rev['faixa'], categories=ordem_faixas, ordered=True)
+                df_aging_rev = df_aging_rev.sort_values('faixa')
+
+                fig_age_r = px.bar(
+                    df_aging_rev,
+                    x='faixa',
+                    y='quantidade',
+                    text='quantidade',
+                    template=template_plotly,
+                    color_discrete_sequence=['#F59E0B']
+                )
+                fig_age_r.update_traces(textposition='outside')
+                fig_age_r.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360, xaxis_title="Dias em Aberto")
+                st.plotly_chart(fig_age_r, use_container_width=True)
+            else:
+                st.info("Sem devoluções em aberto para o período selecionado.")
+
+        with col_g_mot:
+            st.subheader("📋 Top Motivos de Troca / Devolução")
+            if 'motivo_troca' in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_motivos = df_filtrado_reversa['motivo_troca'].value_counts().head(8).reset_index()
+                df_motivos.columns = ['motivo', 'quantidade']
+                df_motivos = df_motivos.sort_values('quantidade', ascending=True)
+
+                fig_mot = px.bar(
+                    df_motivos,
+                    x='quantidade',
+                    y='motivo',
+                    text='quantidade',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=['#8B5CF6']
+                )
+                fig_mot.update_traces(textposition='outside')
+                fig_mot.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360)
+                st.plotly_chart(fig_mot, use_container_width=True)
+            else:
+                st.info("Sem dados de motivos registrados.")
+
+        st.write("---")
+
+        # Download do Relatório Reversa
         col_bot1, col_bot2, col_bot3 = st.columns([1, 2, 1])
         with col_bot2:
             dados_csv_rev = converter_df_para_csv(df_filtrado_reversa)
@@ -523,7 +649,7 @@ else:
             st.download_button(label="📥 Descarregar Relatório Reversa (.csv)", data=dados_csv_rev, file_name=nome_arquivo_rev, mime="text/csv", use_container_width=True)
 
     # ==========================================
-    # ABA: VENDAS (MÓDULO ADICIONAL)
+    # ABA: VENDAS (MÓDULO COMPLETO PROTEGIDO)
     # ==========================================
     with aba_vendas:
         df_seller_temp_vendas = df_raw_vendas_base
