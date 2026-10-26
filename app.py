@@ -568,7 +568,7 @@ else:
             unsafe_allow_html=True
         )
 
-        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO
+        # SELEÇÃO DE PERÍODO E TIPO DE VISÃO (APENAS PARA A BASE DETALHADA)
         col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
 
         with col_filtro_tipo:
@@ -626,7 +626,7 @@ else:
         st.write("---")
 
         # ==========================================
-        # BLOCO ORIGINAL: EVOLUÇÃO MENSAL EM LINHA + TOP SELLERS EM ABERTO
+        # BLOCO: EVOLUÇÃO MENSAL HISTÓRICA COMPLETA + TOP SELLERS COM taxa_devolucao
         # ==========================================
         st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
@@ -639,96 +639,127 @@ else:
             col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
             col_dev = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
 
-            if 'mes_ano_definido' in df_filtrado_resumo.columns and col_taxa in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+            # Agrupamento temporal histórico completo usando a folha RESUMO REVERSA
+            if 'mes_ano_definido' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
                 df_resumo_temp = df_filtrado_resumo.copy()
                 
                 if 'qtd_etr' in df_resumo_temp.columns and col_dev in df_resumo_temp.columns:
+                    df_resumo_temp['qtd_etr_n'] = pd.to_numeric(df_resumo_temp['qtd_etr'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    df_resumo_temp['col_dev_n'] = pd.to_numeric(df_resumo_temp[col_dev].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    
                     df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False).agg(
-                        tot_etr=('qtd_etr', 'sum'),
-                        tot_dev=(col_dev, 'sum')
+                        tot_etr=('qtd_etr_n', 'sum'),
+                        tot_dev=('col_dev_n', 'sum')
                     )
-                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa['tot_dev'] / df_evolucao_taxa['tot_etr']
+                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa.apply(
+                        lambda r: (r['tot_dev'] / r['tot_etr']) if r['tot_etr'] > 0 else 0.0, axis=1
+                    )
+                elif col_taxa in df_resumo_temp.columns:
+                    df_resumo_temp['taxa_n'] = pd.to_numeric(df_resumo_temp[col_taxa].astype(str).str.replace('%', '').str.replace(',', '.'), errors='coerce').fillna(0)
+                    if df_resumo_temp['taxa_n'].median() > 1.05:
+                        df_resumo_temp['taxa_n'] = df_resumo_temp['taxa_n'] / 100.0
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False)['taxa_n'].mean()
+                    df_evolucao_taxa.rename(columns={'taxa_n': 'taxa_calc'}, inplace=True)
                 else:
-                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False)[col_taxa].mean()
-                    df_evolucao_taxa.rename(columns={col_taxa: 'taxa_calc'}, inplace=True)
+                    df_evolucao_taxa = pd.DataFrame()
 
-                df_evolucao_taxa['mes_label'] = df_evolucao_taxa['mes_ano_definido'].astype(str)
-                df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_label')
-                df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
-                
-                cores_pontos = ['#EF4444' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
+                if not df_evolucao_taxa.empty:
+                    df_evolucao_taxa['mes_label'] = df_evolucao_taxa['mes_ano_definido'].astype(str).str.strip()
+                    df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_label')
+                    df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+                    
+                    cores_pontos = ['#EF4444' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
 
-                fig_linha_taxa = go.Figure()
-                fig_linha_taxa.add_trace(go.Scatter(
-                    x=df_evolucao_taxa['mes_label'],
-                    y=df_evolucao_taxa['taxa_calc'],
-                    mode='lines+markers+text',
-                    text=df_evolucao_taxa['taxa_pct_str'],
-                    textposition='top center',
-                    line=dict(color=cor_grafico, width=3),
-                    marker=dict(size=10, color=cores_pontos),
-                    name='Taxa Devolução'
-                ))
+                    fig_linha_taxa = go.Figure()
+                    fig_linha_taxa.add_trace(go.Scatter(
+                        x=df_evolucao_taxa['mes_label'],
+                        y=df_evolucao_taxa['taxa_calc'],
+                        mode='lines+markers+text',
+                        text=df_evolucao_taxa['taxa_pct_str'],
+                        textposition='top center',
+                        line=dict(color=cor_grafico, width=3),
+                        marker=dict(size=10, color=cores_pontos),
+                        name='Taxa Devolução'
+                    ))
 
-                fig_linha_taxa.add_shape(
-                    type="line",
-                    x0=df_evolucao_taxa['mes_label'].iloc[0],
-                    y0=META_TAXA_SELLER,
-                    x1=df_evolucao_taxa['mes_label'].iloc[-1],
-                    y1=META_TAXA_SELLER,
-                    line=dict(color="#F59E0B", width=2, dash="dash")
-                )
+                    if len(df_evolucao_taxa['mes_label']) > 0:
+                        fig_linha_taxa.add_shape(
+                            type="line",
+                            x0=df_evolucao_taxa['mes_label'].iloc[0],
+                            y0=META_TAXA_SELLER,
+                            x1=df_evolucao_taxa['mes_label'].iloc[-1],
+                            y1=META_TAXA_SELLER,
+                            line=dict(color="#F59E0B", width=2, dash="dash")
+                        )
 
-                max_taxa_y = df_evolucao_taxa['taxa_calc'].max() if not df_evolucao_taxa.empty else 0.15
+                    max_taxa_y = df_evolucao_taxa['taxa_calc'].max() if not df_evolucao_taxa.empty else 0.15
 
-                fig_linha_taxa.update_layout(
-                    template=template_plotly,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=30, r=40, t=30, b=30),
-                    height=380,
-                    yaxis=dict(tickformat='.1%', title="Taxa (%)", range=[0, max_taxa_y * 1.25], showgrid=False),
-                    xaxis=dict(type='category', showgrid=False),
-                    showlegend=False
-                )
-                st.plotly_chart(fig_linha_taxa, use_container_width=True)
+                    fig_linha_taxa.update_layout(
+                        template=template_plotly,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(l=30, r=40, t=30, b=30),
+                        height=380,
+                        yaxis=dict(tickformat='.1%', title="Taxa (%)", range=[0, max(max_taxa_y * 1.35, 0.12)], showgrid=False),
+                        xaxis=dict(type='category', showgrid=False),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_linha_taxa, use_container_width=True)
+                else:
+                    st.info("Sem dados de evolução histórica disponíveis para esta seleção.")
             else:
                 st.info("Sem dados de resumo registrados para o Seller selecionado no período.")
 
+        # ==========================================
+        # TOP SELLERS CALCULADO POR taxa_devolucao (CONCLUÍDO)
+        # ==========================================
         with col_graf4:
-            st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
-            if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
-                df_aberto_temp = df_filtrado_resumo.copy()
+            st.subheader("⚠️ Top Sellers - Maior % Taxa de Devolução")
+            col_taxa_alvo = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
+            
+            if 'nome_seller' in df_filtrado_resumo.columns and (col_taxa_alvo in df_filtrado_resumo.columns or ('qtd_etr' in df_filtrado_resumo.columns and col_dev in df_filtrado_resumo.columns)) and not df_filtrado_resumo.empty:
+                df_top_temp = df_filtrado_resumo.copy()
                 
-                # Conversão e correção de escala decimal vs percentagem
-                df_aberto_temp['taxa_devolucao_aberto'] = (
-                    df_aberto_temp['taxa_devolucao_aberto']
-                    .astype(str)
-                    .str.replace('%', '', regex=False)
-                    .str.replace(',', '.', regex=False)
-                    .str.strip()
-                )
-                df_aberto_temp['taxa_num'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce').fillna(0.0)
-
-                # Se a coluna já vier em formato inteiro (ex: 50 para 50%), normaliza para escala decimal (0 a 1)
-                med_val = df_aberto_temp['taxa_num'].median()
-                if med_val > 1.05:
-                    df_aberto_temp['taxa_aberto'] = df_aberto_temp['taxa_num'] / 100.0
+                # Cálculo ponderado da taxa de devolução concluída
+                if 'qtd_etr' in df_top_temp.columns and col_dev in df_top_temp.columns:
+                    df_top_temp['qtd_etr_n'] = pd.to_numeric(df_top_temp['qtd_etr'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    df_top_temp['col_dev_n'] = pd.to_numeric(df_top_temp[col_dev].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    
+                    df_top_agg = df_top_temp.groupby('nome_seller', as_index=False).agg(
+                        tot_etr=('qtd_etr_n', 'sum'),
+                        tot_dev=('col_dev_n', 'sum')
+                    )
+                    df_top_agg['taxa_devolucao_calc'] = df_top_agg.apply(
+                        lambda r: (r['tot_dev'] / r['tot_etr']) if r['tot_etr'] > 0 else 0.0, axis=1
+                    )
                 else:
-                    df_aberto_temp['taxa_aberto'] = df_aberto_temp['taxa_num']
+                    df_top_temp['taxa_devolucao_limpa'] = (
+                        df_top_temp[col_taxa_alvo]
+                        .astype(str)
+                        .str.replace('%', '', regex=False)
+                        .str.replace(',', '.', regex=False)
+                        .str.strip()
+                    )
+                    df_top_temp['taxa_num'] = pd.to_numeric(df_top_temp['taxa_devolucao_limpa'], errors='coerce').fillna(0.0)
+                    
+                    if df_top_temp['taxa_num'].median() > 1.05:
+                        df_top_temp['taxa_devolucao_calc'] = df_top_temp['taxa_num'] / 100.0
+                    else:
+                        df_top_temp['taxa_devolucao_calc'] = df_top_temp['taxa_num']
+                    
+                    df_top_agg = df_top_temp.groupby('nome_seller', as_index=False)['taxa_devolucao_calc'].mean()
 
-                df_top_aberto = (
-                    df_aberto_temp.groupby('nome_seller', as_index=False)['taxa_aberto']
-                    .mean()
-                    .sort_values('taxa_aberto', ascending=False)
+                df_top_sellers = (
+                    df_top_agg
+                    .sort_values('taxa_devolucao_calc', ascending=False)
                     .head(10)
-                    .sort_values('taxa_aberto', ascending=True)
+                    .sort_values('taxa_devolucao_calc', ascending=True)
                 )
-                df_top_aberto['taxa_str'] = df_top_aberto['taxa_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+                df_top_sellers['taxa_str'] = df_top_sellers['taxa_devolucao_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
 
-                fig_top_aberto = px.bar(
-                    df_top_aberto,
-                    x='taxa_aberto',
+                fig_top_sellers = px.bar(
+                    df_top_sellers,
+                    x='taxa_devolucao_calc',
                     y='nome_seller',
                     text='taxa_str',
                     orientation='h',
@@ -736,21 +767,21 @@ else:
                     color_discrete_sequence=['#EF4444']
                 )
 
-                max_taxa_aberto = df_top_aberto['taxa_aberto'].max() if not df_top_aberto.empty else 0.50
+                max_taxa_sellers = df_top_sellers['taxa_devolucao_calc'].max() if not df_top_sellers.empty else 0.20
 
-                fig_top_aberto.update_traces(textposition='outside')
-                fig_top_aberto.update_layout(
+                fig_top_sellers.update_traces(textposition='outside')
+                fig_top_sellers.update_layout(
                     template=template_plotly,
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     margin=dict(l=20, r=100, t=30, b=20),
                     height=380,
-                    xaxis=dict(tickformat='.1%', range=[0, max_taxa_aberto * 1.35], showgrid=False),
+                    xaxis=dict(tickformat='.1%', range=[0, max(max_taxa_sellers * 1.35, 0.12)], showgrid=False),
                     yaxis=dict(showgrid=False)
                 )
-                st.plotly_chart(fig_top_aberto, use_container_width=True)
+                st.plotly_chart(fig_top_sellers, use_container_width=True)
             else:
-                st.info("Sem dados em aberto registrados para este Seller.")
+                st.info("Sem dados de taxa de devolução para os Sellers selecionados.")
 
         st.write("---")
 
