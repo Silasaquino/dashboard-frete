@@ -196,7 +196,7 @@ else:
     st.sidebar.button("🚪 Sair / Logout", on_click=fazer_logout, key="btn_logout")
 
     # ==========================================
-    # CARREGAMENTO CONSOLIDADO
+    # CARREGAMENTO CONSOLIDADO REVERSA (ORIGINAL DE SEXTA)
     # ==========================================
     PLANILHAS_BASE_CONFIG = [
         {"id": "1tYkxqGCSan5C7wAjtqKeKpOE2OeGCgrzSynMaXVBaKU", "gid": "0"},
@@ -267,6 +267,66 @@ else:
         df_raw_resumo = carregar_dados_resumo()
 
     # ==========================================
+    # CARREGAMENTO DO MÓDULO DE VENDAS
+    # ==========================================
+    SHEET_VENDAS_PRINCIPAL = "13R19Vg06Z-E10wKdDl7gqtdKM7KdNeI7unutsVZXrNY"
+    PLANILHAS_VENDAS_BASE = [
+        {"id": "1VarO61GI5asiRDlaw81Dztx4rRINySnk1KgsBCzPgkI", "gid": "0"},
+        {"id": "1Cl9MSMrVaMci_mJ-u62NFnc2NWanl-86M8PJI-2bWyU", "gid": "0"},
+        {"id": "1jGZv0ATiJvCOfmsODT3JPGkpdA18XkmlP60WH_uUCK8", "gid": "0"},
+        {"id": "1khs25N1XevKrSdBun0w0MIXNpY1kx2KiK4UdK0uchdM", "gid": "0"},
+        {"id": "1NiYyktZdtggxFsDunvazt4Fysmf7dQS2SvkNQldiUc0", "gid": "0"}
+    ]
+
+    @st.cache_data(ttl=1800, show_spinner=False)
+    def carregar_aba_vendas_resumo(nome_aba):
+        nome_encoded = urllib.parse.quote(nome_aba)
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_VENDAS_PRINCIPAL}/gviz/tq?tqx=out:csv&sheet={nome_encoded}"
+        try:
+            df = pd.read_csv(url, low_memory=False)
+            if 'nome_seller' in df.columns:
+                df['nome_seller'] = df['nome_seller'].fillna('N/A').astype(str)
+            return df
+        except Exception:
+            return pd.DataFrame()
+
+    @st.cache_data(ttl=1800, show_spinner=False)
+    def carregar_base_vendas():
+        lista_dfs = []
+        for item in PLANILHAS_VENDAS_BASE:
+            sheet_id = item["id"]
+            gid = item["gid"]
+            df_temp = pd.DataFrame()
+            try:
+                url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+                df_temp = pd.read_csv(url_csv, low_memory=False)
+            except Exception:
+                try:
+                    url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
+                    df_temp = pd.read_csv(url_gviz, low_memory=False)
+                except Exception:
+                    pass
+            if not df_temp.empty and len(df_temp.columns) > 1:
+                lista_dfs.append(df_temp)
+
+        if lista_dfs:
+            df_final = pd.concat(lista_dfs, ignore_index=True)
+            if 'nome_seller' in df_final.columns:
+                df_final['nome_seller'] = df_final['nome_seller'].fillna('N/A').astype(str)
+            return df_final
+        return pd.DataFrame()
+
+    # Carrega dados de vendas de forma preguiçosa/cacheada
+    df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
+    df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
+    df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
+    df_res_prejudicado = carregar_aba_vendas_resumo("RESUMO_PREJUDICADO")
+    df_res_sva = carregar_aba_vendas_resumo("RESUMO_SVA")
+    df_res_tracking = carregar_aba_vendas_resumo("RESUMO_TRACKING")
+    df_res_status_loja = carregar_aba_vendas_resumo("RESUMO_STATUS_LOJA")
+    df_raw_vendas_base = carregar_base_vendas()
+
+    # ==========================================
     # ABAS SUPERIORES DE NAVEGAÇÃO
     # ==========================================
     aba_reversa, aba_vendas = st.tabs([
@@ -275,7 +335,7 @@ else:
     ])
 
     # ==========================================
-    # ABA: OPERAÇÃO REVERSA
+    # ABA: OPERAÇÃO REVERSA (ESTRUTURA 100% INTACTA DE SEXTA-FEIRA)
     # ==========================================
     with aba_reversa:
         col_modal, col_seller, col_tema = st.columns([2, 2.5, 1.5])
@@ -886,8 +946,227 @@ else:
             )
 
     # ==========================================
-    # ABA: VENDAS
+    # ABA: VENDAS (MÓDULO COMPLETO CONSTRUÍDO)
     # ==========================================
     with aba_vendas:
-        st.markdown("<div class='header-container-unificado'><div class='header-titulo'>💰 Visão Geral de Vendas</div></div>", unsafe_allow_html=True)
-        st.info("ℹ️ Módulo de Vendas pronto para conexão de dados e relatórios comerciais.")
+        # Seletor de Modal específico para Vendas
+        col_v_modal, col_v_esp = st.columns([2, 4])
+        modais_vendas = ["GERAL", "DAFITI ENVIOS", "MILKRUN", "DROPSHIPPING"]
+        with col_v_modal:
+            st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>MODAL ANALISADO (VENDAS)</span>", unsafe_allow_html=True)
+            modal_vendas_sel = st.selectbox("Modal Vendas", modais_vendas, index=0, key="sb_vendas_modal", label_visibility="collapsed")
+
+        # Filtro de dados de vendas para o Seller selecionado/logado
+        target_seller_vendas = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
+        target_str_v = str(target_seller_vendas).strip().upper()
+
+        def filtrar_vendas(df_input):
+            if df_input.empty:
+                return df_input
+            df_out = df_input.copy()
+            if target_seller_vendas != "Todos" and 'nome_seller' in df_out.columns:
+                df_out = df_out[df_out['nome_seller'].astype(str).str.strip().str.upper() == target_str_v]
+            if modal_vendas_sel != "GERAL" and 'delivery_type' in df_out.columns:
+                df_out = df_out[df_out['delivery_type'].astype(str).str.strip().str.upper() == modal_vendas_sel]
+            return df_out
+
+        f_expedicao = filtrar_vendas(df_res_expedicao)
+        f_caf = filtrar_vendas(df_res_caf)
+        f_entregas = filtrar_vendas(df_res_entregas)
+        f_prejudicado = filtrar_vendas(df_res_prejudicado)
+        f_sva = filtrar_vendas(df_res_sva)
+        f_tracking = filtrar_vendas(df_res_tracking)
+        f_status_loja = filtrar_vendas(df_res_status_loja)
+        f_base_vendas = filtrar_vendas(df_raw_vendas_base)
+
+        # Barra de Título Vendas
+        data_hora_vendas = "N/D"
+        if 'ultima_atualizacao_tabela' in df_raw_vendas_base.columns and not df_raw_vendas_base.empty:
+            d_max_v = pd.to_datetime(df_raw_vendas_base['ultima_atualizacao_tabela']).max()
+            data_hora_vendas = d_max_v.strftime('%d/%m/%Y às %H:%M:%S')
+
+        st.markdown(
+            f"""
+            <div class='header-container-unificado'>
+                <div class='header-titulo'>💰 Visão Geral de Vendas e Expedição</div>
+                <div class='header-atualizacao'>🔄 Última Atualização: <b>{data_hora_vendas}</b></div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
+        # Cálculos com conversão numérica forçada para evitar TypeError/ValueError
+        if 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
+            tot_exp_prazo = float(pd.to_numeric(f_expedicao['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_exp_prazo = 0.0
+
+        if 'total' in f_expedicao.columns and not f_expedicao.empty:
+            tot_exp_pedidos = float(pd.to_numeric(f_expedicao['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_exp_pedidos = 0.0
+        taxa_exp_geral = (tot_exp_prazo / tot_exp_pedidos * 100) if tot_exp_pedidos > 0 else 0.0
+
+        if 'entrega_no_prazo' in f_entregas.columns and not f_entregas.empty:
+            tot_ent_prazo = float(pd.to_numeric(f_entregas['entrega_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_ent_prazo = 0.0
+
+        if 'total' in f_entregas.columns and not f_entregas.empty:
+            tot_ent_pedidos = float(pd.to_numeric(f_entregas['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_ent_pedidos = 0.0
+        taxa_ent_geral = (tot_ent_prazo / tot_ent_pedidos * 100) if tot_ent_pedidos > 0 else 0.0
+
+        if 'caf' in f_caf.columns and not f_caf.empty:
+            tot_cafs = float(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_cafs = 0.0
+
+        if 'qtd' in f_caf.columns and not f_caf.empty:
+            tot_itens_caf = float(pd.to_numeric(f_caf['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_itens_caf = 0.0
+        taxa_caf_geral = (tot_cafs / tot_itens_caf * 100) if tot_itens_caf > 0 else 0.0
+
+        if 'valor_prej' in f_prejudicado.columns and not f_prejudicado.empty:
+            serie_prej = (
+                f_prejudicado['valor_prej']
+                .astype(str)
+                .str.replace('R$', '', regex=False)
+                .str.replace(' ', '', regex=False)
+                .str.replace(',', '.', regex=False)
+            )
+            tot_prejudicado = float(pd.to_numeric(serie_prej, errors='coerce').fillna(0.0).sum())
+        else:
+            tot_prejudicado = 0.0
+
+        if 'qtd_sva' in f_sva.columns and not f_sva.empty:
+            tot_sva = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_sva = 0
+
+        # Cards KPIs de Vendas
+        c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(5)
+        with c_v1:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Expedição no Prazo</div><div class='metric-card-value'>{taxa_exp_geral:.1f}%</div></div>", unsafe_allow_html=True)
+        with c_v2:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Entrega no Prazo</div><div class='metric-card-value'>{taxa_ent_geral:.1f}%</div></div>", unsafe_allow_html=True)
+        with c_v3:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Taxa Cancelamento CAF</div><div class='metric-card-value'>{taxa_caf_geral:.1f}%</div></div>", unsafe_allow_html=True)
+        with c_v4:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Valor Prejudicado</div><div class='metric-card-value'>R$ {tot_prejudicado:,.2f}</div></div>".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+        with c_v5:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Qtd. SVA (Tentativas)</div><div class='metric-card-value'>{tot_sva:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+
+        st.write("---")
+
+        # Gráficos de Vendas
+        col_g_exp, col_g_track = st.columns(2)
+
+        with col_g_exp:
+            st.subheader("📦 Taxa de Expedição no Prazo por Mês")
+            if 'mes_ano_definido' in f_expedicao.columns and 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
+                df_exp_temp = f_expedicao.copy()
+                df_exp_temp['expedicao_no_prazo'] = pd.to_numeric(df_exp_temp['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_exp_temp['total'] = pd.to_numeric(df_exp_temp['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                df_exp_mes = df_exp_temp.groupby('mes_ano_definido', as_index=False).agg(prazo=('expedicao_no_prazo', 'sum'), total=('total', 'sum'))
+                df_exp_mes['taxa'] = df_exp_mes.apply(lambda r: (r['prazo'] / r['total']) if r['total'] > 0 else 0.0, axis=1)
+                df_exp_mes = df_exp_mes.sort_values('mes_ano_definido')
+                df_exp_mes['taxa_str'] = df_exp_mes['taxa'].apply(lambda v: f"{v*100:.1f}%")
+
+                fig_exp = px.line(df_exp_mes, x='mes_ano_definido', y='taxa', text='taxa_str', markers=True, template=template_plotly)
+                fig_exp.update_traces(textposition="top center", line=dict(color='#10B981', width=3))
+                fig_exp.update_layout(yaxis=dict(tickformat='.1%', showgrid=False), xaxis=dict(showgrid=False), height=360)
+                st.plotly_chart(fig_exp, use_container_width=True)
+            else:
+                st.info("Sem dados de expedição para o filtro selecionado.")
+
+        with col_g_track:
+            st.subheader("🚚 Distribuição de Pedidos em Aberto (Tracking)")
+            if 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns and not f_tracking.empty:
+                df_track_temp = f_tracking.copy()
+                df_track_temp['quantidade'] = pd.to_numeric(df_track_temp['quantidade'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_track_agg = df_track_temp.groupby('status_pedido', as_index=False)['quantidade'].sum()
+
+                fig_track = px.pie(df_track_agg, names='status_pedido', values='quantidade', hole=0.45, template=template_plotly, color_discrete_sequence=['#3B82F6', '#10B981', '#F59E0B', '#EF4444'])
+                fig_track.update_traces(textinfo='label+percent', pull=[0.05]*len(df_track_agg))
+                fig_track.update_layout(height=360, showlegend=False)
+                st.plotly_chart(fig_track, use_container_width=True)
+            else:
+                st.info("Sem dados de tracking para os pedidos selecionados.")
+
+        st.write("---")
+
+        col_g_caf, col_g_aging = st.columns(2)
+
+        with col_g_caf:
+            st.subheader("🚫 Histórico de Cancelamentos CAF por Mês")
+            if 'mes_ano_compra' in f_caf.columns and 'caf' in f_caf.columns and not f_caf.empty:
+                df_caf_temp = f_caf.copy()
+                df_caf_temp['caf'] = pd.to_numeric(df_caf_temp['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_caf_temp['qtd'] = pd.to_numeric(df_caf_temp['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                df_caf_mes = df_caf_temp.groupby('mes_ano_compra', as_index=False).agg(cafs=('caf', 'sum'), total=('qtd', 'sum'))
+                df_caf_mes['taxa_caf'] = df_caf_mes.apply(lambda r: f"{(r['cafs'] / r['total'])*100:.1f}%" if r['total'] > 0 else "0.0%", axis=1)
+                df_caf_mes = df_caf_mes.sort_values('mes_ano_compra')
+
+                fig_caf = px.bar(df_caf_mes, x='mes_ano_compra', y='cafs', text='taxa_caf', template=template_plotly, color_discrete_sequence=['#EF4444'])
+                fig_caf.update_traces(textposition='outside')
+                fig_caf.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360, yaxis_title="Qtd. Itens Cancelados")
+                st.plotly_chart(fig_caf, use_container_width=True)
+            else:
+                st.info("Sem registros de cancelamento CAF para o período.")
+
+        with col_g_aging:
+            st.subheader("⏱️ Faixas de Atraso dos Pedidos em Aberto")
+            if 'grupo_dias_em_atraso' in f_base_vendas.columns and not f_base_vendas.empty:
+                df_aging = f_base_vendas['grupo_dias_em_atraso'].value_counts().reset_index()
+                df_aging.columns = ['faixa', 'quantidade']
+                ordem_faixas = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '15+']
+                df_aging['faixa'] = pd.Categorical(df_aging['faixa'], categories=ordem_faixas, ordered=True)
+                df_aging = df_aging.sort_values('faixa')
+
+                fig_aging = px.bar(df_aging, x='faixa', y='quantidade', text='quantidade', template=template_plotly, color_discrete_sequence=[cor_grafico])
+                fig_aging.update_traces(textposition='outside')
+                fig_aging.update_layout(xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), height=360, xaxis_title="Dias em Atraso", yaxis_title="Pedidos")
+                st.plotly_chart(fig_aging, use_container_width=True)
+            else:
+                st.info("Não há pedidos em aberto com atraso registrado.")
+
+        st.write("---")
+
+        if not f_status_loja.empty:
+            st.subheader("🏪 Monitor de Status da Loja (Última Movimentação)")
+            col_l1, col_l2 = st.columns([2, 1])
+            with col_l1:
+                df_exib_loja = f_status_loja[['nome_seller', 'delivery_type', 'data_ultimo_ponto_mkt', 'status_loja']].drop_duplicates()
+                df_exib_loja.columns = ['Seller', 'Modal', 'Último Ponto Mkt', 'Dias sem Movimento']
+                st.dataframe(df_exib_loja, use_container_width=True, hide_index=True)
+            with col_l2:
+                dias_max = pd.to_numeric(f_status_loja['status_loja'].astype(str).str.replace(',', '.'), errors='coerce').max()
+                if pd.isna(dias_max):
+                    dias_max = 0
+                cor_alerta = "#EF4444" if dias_max > 3 else "#10B981"
+                st.markdown(f"""
+                    <div class='metric-card' style='border-left: 5px solid {cor_alerta} !important;'>
+                        <div class='metric-card-label'>Maior Inatividade Detectada</div>
+                        <div class='metric-card-value'>{dias_max:.0f} dia(s)</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        st.write("---")
+
+        # Download do CSV de Vendas
+        col_bot_v1, col_bot_v2, col_bot_v3 = st.columns([1, 2, 1])
+        with col_bot_v2:
+            dados_csv_vendas = converter_df_para_csv(f_base_vendas)
+            nome_arquivo_vendas = f"pedidos_aberto_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+            st.download_button(
+                label="📥 Descarregar Pedidos em Aberto (.csv)",
+                data=dados_csv_vendas,
+                file_name=nome_arquivo_vendas,
+                mime="text/csv",
+                use_container_width=True
+            )
