@@ -480,9 +480,33 @@ else:
         with col_graf4:
             st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
             if 'nome_seller' in df_filtrado_resumo_rev.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo_rev.columns and not df_filtrado_resumo_rev.empty:
-                df_top_aberto = df_filtrado_resumo_rev.groupby('nome_seller', as_index=False)['taxa_devolucao_aberto'].mean().sort_values('taxa_devolucao_aberto', ascending=False).head(10).sort_values('taxa_devolucao_aberto', ascending=True)
+                df_temp_aberto = df_filtrado_resumo_rev.copy()
+                df_temp_aberto['taxa_devolucao_aberto'] = (
+                    df_temp_aberto['taxa_devolucao_aberto']
+                    .astype(str)
+                    .str.replace('%', '', regex=False)
+                    .str.replace(',', '.', regex=False)
+                    .str.strip()
+                )
+                df_temp_aberto['taxa_devolucao_aberto'] = pd.to_numeric(df_temp_aberto['taxa_devolucao_aberto'], errors='coerce').fillna(0.0)
+
+                df_top_aberto = (
+                    df_temp_aberto.groupby('nome_seller', as_index=False)['taxa_devolucao_aberto']
+                    .mean()
+                    .sort_values('taxa_devolucao_aberto', ascending=False)
+                    .head(10)
+                    .sort_values('taxa_devolucao_aberto', ascending=True)
+                )
                 df_top_aberto['taxa_str'] = df_top_aberto['taxa_devolucao_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
-                fig_top_aberto = px.bar(df_top_aberto, x='taxa_devolucao_aberto', y='nome_seller', text='taxa_str', orientation='h', template=template_plotly, color_discrete_sequence=['#EF4444'])
+                fig_top_aberto = px.bar(
+                    df_top_aberto,
+                    x='taxa_devolucao_aberto',
+                    y='nome_seller',
+                    text='taxa_str',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=['#EF4444']
+                )
                 fig_top_aberto.update_traces(textposition='outside')
                 fig_top_aberto.update_layout(xaxis=dict(tickformat='.1%', showgrid=False), yaxis=dict(showgrid=False), height=380)
                 st.plotly_chart(fig_top_aberto, use_container_width=True)
