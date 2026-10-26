@@ -240,7 +240,7 @@ else:
                 try:
                     url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=BASE"
                     df_temp = pd.read_csv(url_gviz, usecols=lambda c: c in colunas_desejadas, low_memory=False)
-                except Exception as e:
+                except Exception:
                     pass
 
             if not df_temp.empty and len(df_temp.columns) > 1:
@@ -589,7 +589,6 @@ else:
             )
             meses_disponiveis = ["Todos"] + meses_unicos
 
-            # Procura posicionar o seletor no mês de corte como padrão, se existir na lista
             idx_padrao = 0
             for i, m in enumerate(meses_disponiveis):
                 if mes_atual_iso in str(m) or str(m) in mes_atual_iso:
@@ -608,7 +607,6 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Filtra os dados detalhados da reversa com base no período escolhido
         df_base_reversa_periodo = df_filtrado_reversa.copy()
         if mes_selecionado != "Todos" and coluna_data_alvo in df_base_reversa_periodo.columns:
             df_base_reversa_periodo = df_base_reversa_periodo[
@@ -617,186 +615,157 @@ else:
 
         st.write("")
 
-        # 1. CÁLCULO DAS 4 TAXAS DE QUALIDADE DA REVERSA (ATUAL VS ANTERIOR)
-        col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
-        v_dev_rev, a_dev_rev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
-        v_aberto_rev, a_aberto_rev = calcular_taxas_com_corte(df_filtrado_resumo, 'devolucao_em_aberto', 'qtd_etr', 'mes_ano_definido')
-        v_sac_rev, a_sac_rev = calcular_taxas_com_corte(df_filtrado_resumo, 'devolucao_sac', 'qtd_etr', 'mes_ano_definido')
-        v_ext_rev, a_ext_rev = calcular_taxas_com_corte(df_filtrado_resumo, 'extravios', 'qtd_etr', 'mes_ano_definido')
-
-        # 2. CARDS DE QUALIDADE DA REVERSA (COM METAS E DIAGNÓSTICO)
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Qualidade da Operação Reversa</h3>", unsafe_allow_html=True)
-        col_rq1, col_rq2, col_rq3, col_rq4 = st.columns(4)
-
-        cor_dev = "#10B981" if v_dev_rev <= 9 else "#EF4444"
-        bg_dev = "rgba(16, 185, 129, 0.12)" if v_dev_rev <= 9 else "rgba(244, 63, 94, 0.12)"
-        diag_dev = "Taxa de devolução dentro da meta! Monitorização contínua." if v_dev_rev <= 9 else "Taxa de devolução acima do target (9%). Analise os motivos de retorno."
-
-        with col_rq1:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>↩️ TAXA DEVOLUÇÃO <span style='opacity:0.5;'>(9%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_dev}; margin: 6px 0 2px 0;'>{v_dev_rev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_dev_rev:.2f}%</div>
-                    <div style='background-color: {bg_dev}; color: {cor_dev}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_dev}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_aberto = "#10B981" if v_aberto_rev <= 5 else "#EF4444"
-        bg_aberto = "rgba(16, 185, 129, 0.12)" if v_aberto_rev <= 5 else "rgba(244, 63, 94, 0.12)"
-        diag_aberto = "Baixo volume retido. Pacotes estão sendo bipados com rapidez." if v_aberto_rev <= 5 else "Alerta de retenção: muitos pacotes em aberto sem conferência final."
-
-        with col_rq2:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>⚠️ DEVOLUÇÃO EM ABERTO <span style='opacity:0.5;'>(5%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_aberto}; margin: 6px 0 2px 0;'>{v_aberto_rev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_aberto_rev:.2f}%</div>
-                    <div style='background-color: {bg_aberto}; color: {cor_aberto}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_aberto}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_sac_r = "#10B981" if v_sac_rev <= 2 else "#EF4444"
-        bg_sac_r = "rgba(16, 185, 129, 0.12)" if v_sac_rev <= 2 else "rgba(244, 63, 94, 0.12)"
-        diag_sac_r = "Devoluções abertas via atendimento sob controle e dentro da meta." if v_sac_rev <= 2 else "Atenção: Aumento de devoluções forçadas através do canal SAC."
-
-        with col_rq3:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 DEVOLUÇÃO SAC <span style='opacity:0.5;'>(2%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_sac_r}; margin: 6px 0 2px 0;'>{v_sac_rev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac_rev:.2f}%</div>
-                    <div style='background-color: {bg_sac_r}; color: {cor_sac_r}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_sac_r}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        cor_ext = "#10B981" if v_ext_rev <= 1 else "#EF4444"
-        bg_ext = "rgba(16, 185, 129, 0.12)" if v_ext_rev <= 1 else "rgba(244, 63, 94, 0.12)"
-        diag_ext = "Índice de sinistro ou extravio na reversa dentro da tolerância." if v_ext_rev <= 1 else "Perdas elevadas de pacotes em transporte reverso. Acompanhe acareações."
-
-        with col_rq4:
-            st.markdown(f"""
-                <div class='metric-card' style='text-align: left; padding: 22px; height: 100%; display: flex; flex-direction: column;'>
-                    <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>📦 EXTRAVIOS / PERDAS <span style='opacity:0.5;'>(1%)</span></div>
-                    <div style='font-size: 42px; font-weight: 900; color: {cor_ext}; margin: 6px 0 2px 0;'>{v_ext_rev:.2f}%</div>
-                    <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_ext_rev:.2f}%</div>
-                    <div style='background-color: {bg_ext}; color: {cor_ext}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
-                        {diag_ext}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        st.write("---")
-
-        # 3. PERFORMANCE DE REMESSAS (REVERSA) + EVOLUÇÃO MENSAL
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Performance de Devolução (Seller)</h3>", unsafe_allow_html=True)
-        col_rev_fat, col_graf_rev_meta = st.columns([1, 2])
-
+        # ==========================================
+        # KPIS PRINCIPAIS (ORIGINAL ESTÁVEL DE SEXTA)
+        # ==========================================
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
         qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
 
-        with col_rev_fat:
-            rotulo_periodo = mes_selecionado if mes_selecionado != "Todos" else texto_mes_ref
-            st.markdown(f"""
-                <div class='metric-card' style='background: linear-gradient(135deg, #1E293B 0%, rgba(96, 165, 250, 0.15) 100%); border: 1px solid #60A5FA40; padding: 35px 20px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
-                    <div style='font-size: 40px; margin-bottom: 12px;'>🔄</div>
-                    <div style='color: #60A5FA; font-size: 15px; font-weight: 800; text-transform: uppercase;'>Remessas Únicas ({rotulo_periodo})</div>
-                    <div style='color: #FFFFFF; font-size: 52px; font-weight: 900; margin-top: 10px;'>{qtd_remessas_unicas:,}</div>
-                </div>
-            """.replace(",", "."), unsafe_allow_html=True)
-
-        with col_graf_rev_meta:
-            col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
-            if 'mes_ano_definido' in df_filtrado_resumo.columns and col_taxa in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
-                df_res_evol = df_filtrado_resumo.copy()
-                if 'qtd_etr' in df_res_evol.columns and col_dev_r in df_res_evol.columns:
-                    df_evol_g = df_res_evol.groupby('mes_ano_definido', as_index=False).agg(tot_etr=('qtd_etr', 'sum'), tot_dev=(col_dev_r, 'sum'))
-                    df_evol_g['taxa_calc'] = (df_evol_g['tot_dev'] / df_evol_g['tot_etr'] * 100)
-                else:
-                    df_evol_g = df_res_evol.groupby('mes_ano_definido', as_index=False)[col_taxa].mean()
-                    df_evol_g['taxa_calc'] = df_evol_g[col_taxa] * 100
-
-                df_evol_g = df_evol_g.sort_values('mes_ano_definido').tail(6)
-                df_evol_g['cor'] = df_evol_g['taxa_calc'].apply(lambda v: '#10B981' if v <= 9.0 else '#EF4444')
-                df_evol_g['taxa_str'] = df_evol_g['taxa_calc'].apply(lambda v: f"{v:.1f}%")
-
-                fig_evol_col = px.bar(
-                    df_evol_g,
-                    x='mes_ano_definido',
-                    y='taxa_calc',
-                    text='taxa_str',
-                    color='cor',
-                    color_discrete_map={'#10B981': '#10B981', '#EF4444': '#EF4444'},
-                    template=template_plotly
-                )
-                fig_evol_col.add_hline(y=9.0, line_dash="dash", line_color="#F59E0B", annotation_text="META: 9.0%", annotation_position="top left")
-                fig_evol_col.update_traces(textposition='outside')
-                fig_evol_col.update_layout(
-                    height=260,
-                    showlegend=False,
-                    xaxis_title="",
-                    yaxis_title="Taxa Dev (%)",
-                    yaxis=dict(range=[0, max(df_evol_g['taxa_calc'].max() * 1.3, 15)], showgrid=False),
-                    xaxis=dict(showgrid=False),
-                    margin=dict(l=20, r=20, t=30, b=20)
-                )
-                st.plotly_chart(fig_evol_col, use_container_width=True)
-            else:
-                st.info("Sem dados de evolução histórica para a seleção.")
+        col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+        with col_kpi1:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Total Linhas Agrupadas</div><div class='metric-card-value'>{len(df_base_reversa_periodo):,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_kpi2:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Qtd. Remessas Únicas</div><div class='metric-card-value'>{qtd_remessas_unicas:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
+        with col_kpi3:
+            st.markdown(f"<div class='metric-card'><div class='metric-card-label'>Modal Analisado</div><div class='metric-card-value'>{modal_selecionado}</div></div>", unsafe_allow_html=True)
 
         st.write("---")
 
-        # 4. RAIO-X: DEVOLUÇÕES EM ABERTO (BACKLOG DA REVERSA)
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Raio-X: Devoluções em Aberto (Tempo de Permanência)</h3>", unsafe_allow_html=True)
-        r_ok, r_atencao, r_critico = 0, 0, 0
-        df_dist_aging_rev = pd.DataFrame()
-
-        if 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-            for _, row in df_base_reversa_periodo.iterrows():
-                val_g = str(row['grupo_aberto_seller']).strip().upper()
-                if "+5" in val_g or "5+" in val_g:
-                    r_critico += 1
-                else:
-                    d_n = pd.to_numeric(val_g.replace(" DIAS CORRIDOS", "").replace(" DIAS", "").strip(), errors='coerce')
-                    if pd.notnull(d_n):
-                        if d_n <= 2:
-                            r_ok += 1
-                        elif 3 <= d_n <= 4:
-                            r_atencao += 1
-                        elif d_n >= 5:
-                            r_critico += 1
-
-            df_dist_aging_rev = df_base_reversa_periodo['grupo_aberto_seller'].value_counts().reset_index()
-            df_dist_aging_rev.columns = ['faixa', 'quantidade']
-            ordem_faixas_rev = ['0 DIAS CORRIDOS', '1 DIAS CORRIDOS', '2 DIAS CORRIDOS', '3 DIAS CORRIDOS', '4 DIAS CORRIDOS', '5 DIAS CORRIDOS', '⚠️ +5 DIAS CORRIDOS']
-            df_dist_aging_rev['faixa'] = df_dist_aging_rev['faixa'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("+5" in g or "5+" in g) else g)
-            df_dist_aging_rev = df_dist_aging_rev.groupby('faixa', as_index=False)['quantidade'].sum()
-
-        tot_aberto_reversa = r_ok + r_atencao + r_critico
-
-        col_rb1, col_rb2, col_rb3, col_rb4 = st.columns(4)
-        with col_rb1:
-            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #10B981 !important;'><div class='metric-card-label'>✅ Até 2 Dias (No Prazo)</div><div class='metric-card-value'>{r_ok:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_rb2:
-            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #F59E0B !important;'><div class='metric-card-label'>⚠️ 3 a 4 Dias (Atenção)</div><div class='metric-card-value'>{r_atencao:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_rb3:
-            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #EF4444 !important;'><div class='metric-card-label'>💀 +5 Dias (Crítico)</div><div class='metric-card-value'>{r_critico:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-        with col_rb4:
-            st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #3B82F6 !important;'><div class='metric-card-label'>📦 Total Retido</div><div class='metric-card-value'>{tot_aberto_reversa:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
-
+        # ==========================================
+        # BLOCO ORIGINAL: EVOLUÇÃO MENSAL EM LINHA + TOP SELLERS EM ABERTO
+        # ==========================================
+        st.markdown("<h3 style='text-align: center;'>📊 Indicadores de Devolução por Seller e Meta</h3>", unsafe_allow_html=True)
         st.write("")
+
+        col_graf3, col_graf4 = st.columns(2)
+        META_TAXA_SELLER = 0.09
+
+        with col_graf3:
+            st.subheader("🎯 Evolução Mensal da Taxa de Devolução")
+            col_taxa = 'taxa_devolucao' if 'taxa_devolucao' in df_filtrado_resumo.columns else 'taxa_devolucao_seller'
+            col_dev = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
+
+            if 'mes_ano_definido' in df_filtrado_resumo.columns and col_taxa in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+                df_resumo_temp = df_filtrado_resumo.copy()
+                
+                if 'qtd_etr' in df_resumo_temp.columns and col_dev in df_resumo_temp.columns:
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False).agg(
+                        tot_etr=('qtd_etr', 'sum'),
+                        tot_dev=(col_dev, 'sum')
+                    )
+                    df_evolucao_taxa['taxa_calc'] = df_evolucao_taxa['tot_dev'] / df_evolucao_taxa['tot_etr']
+                else:
+                    df_evolucao_taxa = df_resumo_temp.groupby('mes_ano_definido', as_index=False)[col_taxa].mean()
+                    df_evolucao_taxa.rename(columns={col_taxa: 'taxa_calc'}, inplace=True)
+
+                df_evolucao_taxa['mes_label'] = df_evolucao_taxa['mes_ano_definido'].astype(str)
+                df_evolucao_taxa = df_evolucao_taxa.sort_values('mes_label')
+                df_evolucao_taxa['taxa_pct_str'] = df_evolucao_taxa['taxa_calc'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+                
+                cores_pontos = ['#EF4444' if val > META_TAXA_SELLER else cor_grafico for val in df_evolucao_taxa['taxa_calc']]
+
+                fig_linha_taxa = go.Figure()
+                fig_linha_taxa.add_trace(go.Scatter(
+                    x=df_evolucao_taxa['mes_label'],
+                    y=df_evolucao_taxa['taxa_calc'],
+                    mode='lines+markers+text',
+                    text=df_evolucao_taxa['taxa_pct_str'],
+                    textposition='top center',
+                    line=dict(color=cor_grafico, width=3),
+                    marker=dict(size=10, color=cores_pontos),
+                    name='Taxa Devolução'
+                ))
+
+                fig_linha_taxa.add_shape(
+                    type="line",
+                    x0=df_evolucao_taxa['mes_label'].iloc[0],
+                    y0=META_TAXA_SELLER,
+                    x1=df_evolucao_taxa['mes_label'].iloc[-1],
+                    y1=META_TAXA_SELLER,
+                    line=dict(color="#F59E0B", width=2, dash="dash")
+                )
+
+                max_taxa_y = df_evolucao_taxa['taxa_calc'].max() if not df_evolucao_taxa.empty else 0.15
+
+                fig_linha_taxa.update_layout(
+                    template=template_plotly,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=30, r=40, t=30, b=30),
+                    height=380,
+                    yaxis=dict(tickformat='.1%', title="Taxa (%)", range=[0, max_taxa_y * 1.25], showgrid=False),
+                    xaxis=dict(type='category', showgrid=False),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_linha_taxa, use_container_width=True)
+            else:
+                st.info("Sem dados de resumo registrados para o Seller selecionado no período.")
+
+        with col_graf4:
+            st.subheader("⚠️ Top Sellers - Maior % Devolução em Aberto")
+            if 'nome_seller' in df_filtrado_resumo.columns and 'taxa_devolucao_aberto' in df_filtrado_resumo.columns and not df_filtrado_resumo.empty:
+                df_aberto_temp = df_filtrado_resumo.copy()
+                
+                df_aberto_temp['taxa_devolucao_aberto'] = (
+                    df_aberto_temp['taxa_devolucao_aberto']
+                    .astype(str)
+                    .str.replace('%', '', regex=False)
+                    .str.replace(',', '.', regex=False)
+                    .str.strip()
+                )
+                df_aberto_temp['taxa_devolucao_aberto'] = pd.to_numeric(df_aberto_temp['taxa_devolucao_aberto'], errors='coerce').fillna(0.0)
+
+                df_top_aberto = (
+                    df_aberto_temp.groupby('nome_seller', as_index=False)['taxa_devolucao_aberto']
+                    .mean()
+                    .sort_values('taxa_devolucao_aberto', ascending=False)
+                    .head(10)
+                    .sort_values('taxa_devolucao_aberto', ascending=True)
+                )
+                df_top_aberto['taxa_str'] = df_top_aberto['taxa_devolucao_aberto'].apply(lambda v: f"{v*100:.1f}%" if pd.notnull(v) else "0.0%")
+
+                fig_top_aberto = px.bar(
+                    df_top_aberto,
+                    x='taxa_devolucao_aberto',
+                    y='nome_seller',
+                    text='taxa_str',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=['#EF4444']
+                )
+
+                max_taxa_aberto = df_top_aberto['taxa_devolucao_aberto'].max() if not df_top_aberto.empty else 0.50
+
+                fig_top_aberto.update_traces(textposition='outside')
+                fig_top_aberto.update_layout(
+                    template=template_plotly,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=100, t=30, b=20),
+                    height=380,
+                    xaxis=dict(tickformat='.1%', range=[0, max_taxa_aberto * 1.35], showgrid=False),
+                    yaxis=dict(showgrid=False)
+                )
+                st.plotly_chart(fig_top_aberto, use_container_width=True)
+            else:
+                st.info("Sem dados em aberto registrados para este Seller.")
+
+        st.write("---")
+
+        # ==========================================
+        # BLOCO: DISTRIBUIÇÃO E MOTIVOS
+        # ==========================================
         col_rage_graf, col_mot_graf = st.columns([1, 1])
 
         with col_rage_graf:
-            st.subheader("⏱️ Faixas de Atraso no Seller")
-            if not df_dist_aging_rev.empty:
+            st.subheader("⏱️ Faixas de Atraso no Seller (+5 Dias)")
+            if 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_dist_aging_rev = df_base_reversa_periodo['grupo_aberto_seller'].value_counts().reset_index()
+                df_dist_aging_rev.columns = ['faixa', 'quantidade']
+                df_dist_aging_rev['faixa'] = df_dist_aging_rev['faixa'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("+5" in g or "5+" in g) else g)
+                df_dist_aging_rev = df_dist_aging_rev.groupby('faixa', as_index=False)['quantidade'].sum()
+
                 fig_age_r = px.bar(
                     df_dist_aging_rev,
                     x='faixa',
@@ -815,15 +784,15 @@ else:
                     }
                 )
                 fig_age_r.update_traces(textposition='outside')
-                fig_age_r.update_layout(height=280, showlegend=False, xaxis_title="", yaxis_title="Remessas", margin=dict(l=20, r=20, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
+                fig_age_r.update_layout(height=320, showlegend=False, xaxis_title="", yaxis_title="Remessas", margin=dict(l=20, r=20, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
                 st.plotly_chart(fig_age_r, use_container_width=True)
             else:
                 st.info("Sem dados de pacotes entregues pendentes de conferência.")
 
         with col_mot_graf:
-            st.subheader("🔍 Top Motivos de Troca / Devolução")
+            st.subheader("🔍 Principais Motivos de Troca / Devolução")
             if 'motivo_troca' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-                df_motivos = df_base_reversa_periodo['motivo_troca'].value_counts().head(6).reset_index()
+                df_motivos = df_base_reversa_periodo['motivo_troca'].value_counts().head(8).reset_index()
                 df_motivos.columns = ['motivo', 'quantidade']
                 df_motivos = df_motivos.sort_values('quantidade', ascending=True)
 
@@ -837,15 +806,17 @@ else:
                     color_discrete_sequence=['#8B5CF6']
                 )
                 fig_motivos.update_traces(textposition='outside')
-                fig_motivos.update_layout(height=280, xaxis_title="", yaxis_title="", margin=dict(l=20, r=40, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
+                fig_motivos.update_layout(height=320, xaxis_title="", yaxis_title="", margin=dict(l=20, r=40, t=20, b=20), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
                 st.plotly_chart(fig_motivos, use_container_width=True)
             else:
                 st.info("Sem dados de motivos registrados para o período selecionado.")
 
         st.write("---")
 
-        # 5. JORNADA DO TRACKING (PIPELINE DA REVERSA)
-        st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
+        # ==========================================
+        # JORNADA DO TRACKING SEQUENCIAL
+        # ==========================================
+        st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
             df_tracking = df_base_reversa_periodo['tracking'].value_counts().reset_index()
             df_tracking.columns = ['status_tracking', 'quantidade']
