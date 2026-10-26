@@ -568,20 +568,57 @@ else:
             </div>
         """, unsafe_allow_html=True)
 
-        tot_exp_prazo = f_expedicao['expedicao_no_prazo'].sum() if 'expedicao_no_prazo' in f_expedicao.columns else 0
-        tot_exp_pedidos = f_expedicao['total'].sum() if 'total' in f_expedicao.columns else 0
+        # Conversão numérica protegida dos KPIs de Vendas
+        if 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
+            tot_exp_prazo = float(pd.to_numeric(f_expedicao['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_exp_prazo = 0.0
+
+        if 'total' in f_expedicao.columns and not f_expedicao.empty:
+            tot_exp_pedidos = float(pd.to_numeric(f_expedicao['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_exp_pedidos = 0.0
         taxa_exp_geral = (tot_exp_prazo / tot_exp_pedidos * 100) if tot_exp_pedidos > 0 else 0.0
 
-        tot_ent_prazo = f_entregas['entrega_no_prazo'].sum() if 'entrega_no_prazo' in f_entregas.columns else 0
-        tot_ent_pedidos = f_entregas['total'].sum() if 'total' in f_entregas.columns else 0
+        if 'entrega_no_prazo' in f_entregas.columns and not f_entregas.empty:
+            tot_ent_prazo = float(pd.to_numeric(f_entregas['entrega_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_ent_prazo = 0.0
+
+        if 'total' in f_entregas.columns and not f_entregas.empty:
+            tot_ent_pedidos = float(pd.to_numeric(f_entregas['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_ent_pedidos = 0.0
         taxa_ent_geral = (tot_ent_prazo / tot_ent_pedidos * 100) if tot_ent_pedidos > 0 else 0.0
 
-        tot_cafs = f_caf['caf'].sum() if 'caf' in f_caf.columns else 0
-        tot_itens_caf = f_caf['qtd'].sum() if 'qtd' in f_caf.columns else 0
+        if 'caf' in f_caf.columns and not f_caf.empty:
+            tot_cafs = float(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_cafs = 0.0
+
+        if 'qtd' in f_caf.columns and not f_caf.empty:
+            tot_itens_caf = float(pd.to_numeric(f_caf['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_itens_caf = 0.0
         taxa_caf_geral = (tot_cafs / tot_itens_caf * 100) if tot_itens_caf > 0 else 0.0
 
-        tot_prejudicado = f_prejudicado['valor_prej'].sum() if 'valor_prej' in f_prejudicado.columns else 0.0
-        tot_sva = f_sva['qtd_sva'].sum() if 'qtd_sva' in f_sva.columns else 0
+        # Tratamento seguro do Valor Prejudicado (remoção de R$, espaços e conversão de vírgula)
+        if 'valor_prej' in f_prejudicado.columns and not f_prejudicado.empty:
+            serie_prej = (
+                f_prejudicado['valor_prej']
+                .astype(str)
+                .str.replace('R$', '', regex=False)
+                .str.replace(' ', '', regex=False)
+                .str.replace(',', '.', regex=False)
+            )
+            tot_prejudicado = float(pd.to_numeric(serie_prej, errors='coerce').fillna(0.0).sum())
+        else:
+            tot_prejudicado = 0.0
+
+        if 'qtd_sva' in f_sva.columns and not f_sva.empty:
+            tot_sva = int(pd.to_numeric(f_sva['qtd_sva'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+        else:
+            tot_sva = 0
 
         c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(5)
         with c_v1:
@@ -602,8 +639,12 @@ else:
         with col_g_exp:
             st.subheader("📦 Taxa de Expedição no Prazo por Mês")
             if 'mes_ano_definido' in f_expedicao.columns and 'expedicao_no_prazo' in f_expedicao.columns and not f_expedicao.empty:
-                df_exp_mes = f_expedicao.groupby('mes_ano_definido', as_index=False).agg(prazo=('expedicao_no_prazo', 'sum'), total=('total', 'sum'))
-                df_exp_mes['taxa'] = df_exp_mes['prazo'] / df_exp_mes['total']
+                df_exp_temp = f_expedicao.copy()
+                df_exp_temp['expedicao_no_prazo'] = pd.to_numeric(df_exp_temp['expedicao_no_prazo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_exp_temp['total'] = pd.to_numeric(df_exp_temp['total'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                df_exp_mes = df_exp_temp.groupby('mes_ano_definido', as_index=False).agg(prazo=('expedicao_no_prazo', 'sum'), total=('total', 'sum'))
+                df_exp_mes['taxa'] = df_exp_mes.apply(lambda r: (r['prazo'] / r['total']) if r['total'] > 0 else 0.0, axis=1)
                 df_exp_mes = df_exp_mes.sort_values('mes_ano_definido')
                 df_exp_mes['taxa_str'] = df_exp_mes['taxa'].apply(lambda v: f"{v*100:.1f}%")
 
@@ -617,7 +658,10 @@ else:
         with col_g_track:
             st.subheader("🚚 Distribuição de Pedidos em Aberto (Tracking)")
             if 'status_pedido' in f_tracking.columns and 'quantidade' in f_tracking.columns and not f_tracking.empty:
-                df_track_agg = f_tracking.groupby('status_pedido', as_index=False)['quantidade'].sum()
+                df_track_temp = f_tracking.copy()
+                df_track_temp['quantidade'] = pd.to_numeric(df_track_temp['quantidade'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_track_agg = df_track_temp.groupby('status_pedido', as_index=False)['quantidade'].sum()
+
                 fig_track = px.pie(df_track_agg, names='status_pedido', values='quantidade', hole=0.45, template=template_plotly, color_discrete_sequence=['#3B82F6', '#10B981', '#F59E0B', '#EF4444'])
                 fig_track.update_traces(textinfo='label+percent', pull=[0.05]*len(df_track_agg))
                 fig_track.update_layout(height=360, showlegend=False)
@@ -632,8 +676,12 @@ else:
         with col_g_caf:
             st.subheader("🚫 Histórico de Cancelamentos CAF por Mês")
             if 'mes_ano_compra' in f_caf.columns and 'caf' in f_caf.columns and not f_caf.empty:
-                df_caf_mes = f_caf.groupby('mes_ano_compra', as_index=False).agg(cafs=('caf', 'sum'), total=('qtd', 'sum'))
-                df_caf_mes['taxa_caf'] = (df_caf_mes['cafs'] / df_caf_mes['total']).apply(lambda v: f"{v*100:.1f}%")
+                df_caf_temp = f_caf.copy()
+                df_caf_temp['caf'] = pd.to_numeric(df_caf_temp['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                df_caf_temp['qtd'] = pd.to_numeric(df_caf_temp['qtd'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                df_caf_mes = df_caf_temp.groupby('mes_ano_compra', as_index=False).agg(cafs=('caf', 'sum'), total=('qtd', 'sum'))
+                df_caf_mes['taxa_caf'] = df_caf_mes.apply(lambda r: f"{(r['cafs'] / r['total'])*100:.1f}%" if r['total'] > 0 else "0.0%", axis=1)
                 df_caf_mes = df_caf_mes.sort_values('mes_ano_compra')
 
                 fig_caf = px.bar(df_caf_mes, x='mes_ano_compra', y='cafs', text='taxa_caf', template=template_plotly, color_discrete_sequence=['#EF4444'])
@@ -669,7 +717,9 @@ else:
                 df_exib_loja.columns = ['Seller', 'Modal', 'Último Ponto Mkt', 'Dias sem Movimento']
                 st.dataframe(df_exib_loja, use_container_width=True, hide_index=True)
             with col_l2:
-                dias_max = pd.to_numeric(f_status_loja['status_loja'], errors='coerce').max()
+                dias_max = pd.to_numeric(f_status_loja['status_loja'].astype(str).str.replace(',', '.'), errors='coerce').max()
+                if pd.isna(dias_max):
+                    dias_max = 0
                 cor_alerta = "#EF4444" if dias_max > 3 else "#10B981"
                 st.markdown(f"""
                     <div class='metric-card' style='border-left: 5px solid {cor_alerta} !important;'>
