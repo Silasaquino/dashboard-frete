@@ -1571,20 +1571,18 @@ else:
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
         c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
 
-        tot_caf = 0
+        # 1. Cancelado (Seller) - Diretamente da soma real da coluna 'caf' da aba RESUMO_CAF
         if not f_caf.empty and 'caf' in f_caf.columns:
-            tot_caf = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+            c_sel = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # Cálculo exato a partir da soma da coluna 'rcc' da aba RESUMO_RCC
-        c_rcc_real = 0
+        # 2. Falha na Coleta - Diretamente da soma real da coluna 'rcc' da aba RESUMO_RCC
         if not f_rcc.empty and 'rcc' in f_rcc.columns:
-            c_rcc_real = int(pd.to_numeric(f_rcc['rcc'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+            c_col = int(pd.to_numeric(f_rcc['rcc'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # Falha na Coleta recebe exatamente a soma real de RCC (sem percentual estimado)
-        c_col = c_rcc_real
-        c_sel = max(0, int((tot_caf - c_col) * 0.75))
-        c_cli = max(0, tot_caf - (c_sel + c_col))
+        # 3. Cancelado (Cliente)
+        c_cli = 0
 
+        # 4. Valor Prejudicado
         if not f_prejudicado.empty and 'valor_prej' in f_prejudicado.columns:
             serie_prej = (
                 f_prejudicado['valor_prej']
