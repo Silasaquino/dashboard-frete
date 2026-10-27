@@ -375,7 +375,7 @@ else:
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
     # ==========================================
-    # ESTILIZAÇÃO CSS
+    # ESTILIZAÇÃO CSS DEFINITIVA PARA AS ABAS
     # ==========================================
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
@@ -403,34 +403,58 @@ else:
                 }
                 [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
 
-                /* BOTÕES NATIVOS TRANSFORMADOS EM ABAS PERSONALIZADAS */
-                div[data-testid="column"] button[kind="secondary"] {
-                    background: transparent !important;
-                    border: none !important;
-                    border-radius: 0px !important;
-                    padding: 8px 12px 14px 12px !important;
-                    cursor: pointer !important;
-                    transition: all 0.2s ease-in-out !important;
-                    width: 100% !important;
+                /* LISTA DE ABAS COM ESPAÇAMENTO LARGO E LINHA DE FUNDO FINA */
+                .stTabs [data-baseweb="tab-list"] {
+                    gap: 3.5rem !important;
+                    background-color: transparent !important;
+                    border-bottom: 1.5px solid #1E293B !important;
+                    padding-bottom: 0px !important;
+                    margin-bottom: 25px !important;
                 }
 
-                div[data-testid="column"] button[kind="secondary"] p {
+                /* CADA ABA (BOTÃO) SEM FUNDO BRANCO */
+                .stTabs [data-baseweb="tab"] {
+                    background-color: transparent !important;
+                    background: transparent !important;
+                    border: none !important;
+                    padding: 8px 12px 14px 12px !important;
+                    height: auto !important;
+                }
+
+                /* TEXTO DA ABA INATIVA */
+                .stTabs [data-baseweb="tab"] p, 
+                .stTabs [data-baseweb="tab"] span, 
+                .stTabs [data-baseweb="tab"] div {
                     font-size: 19px !important;
                     font-weight: 700 !important;
                     color: #64748B !important;
                 }
 
-                div[data-testid="column"] button[kind="secondary"]:hover p {
+                .stTabs [data-baseweb="tab"]:hover p,
+                .stTabs [data-baseweb="tab"]:hover span {
                     color: #CBD5E1 !important;
                 }
 
-                /* ABA ATIVA */
-                .aba-ativa-container button {
+                /* ABA ATIVA (TEXTO BRANCO E SUBLINHADO AZUL) */
+                .stTabs [data-baseweb="tab"][aria-selected="true"] {
+                    background-color: transparent !important;
+                    border: none !important;
                     border-bottom: 3.5px solid #3B82F6 !important;
+                    border-radius: 0px !important;
                 }
-                .aba-ativa-container button p {
+
+                .stTabs [data-baseweb="tab"][aria-selected="true"] p,
+                .stTabs [data-baseweb="tab"][aria-selected="true"] span {
                     color: #FFFFFF !important;
                     font-weight: 900 !important;
+                }
+
+                /* REMOVE O DESTAQUE VERMELHO PADRÃO DO STREAMLIT */
+                .stTabs [data-baseweb="tab-highlight"] {
+                    display: none !important;
+                }
+                .stTabs [data-baseweb="tab-border"] {
+                    display: none !important;
                 }
 
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
@@ -489,32 +513,52 @@ else:
                 }
                 [data-testid="stSidebar"] * { color: #0F172A !important; }
 
-                div[data-testid="column"] button[kind="secondary"] {
-                    background: transparent !important;
-                    border: none !important;
-                    border-radius: 0px !important;
-                    padding: 8px 12px 14px 12px !important;
-                    cursor: pointer !important;
-                    transition: all 0.2s ease-in-out !important;
-                    width: 100% !important;
+                .stTabs [data-baseweb="tab-list"] {
+                    gap: 3.5rem !important;
+                    background-color: transparent !important;
+                    border-bottom: 1.5px solid #E2E8F0 !important;
+                    padding-bottom: 0px !important;
+                    margin-bottom: 25px !important;
                 }
 
-                div[data-testid="column"] button[kind="secondary"] p {
+                .stTabs [data-baseweb="tab"] {
+                    background-color: transparent !important;
+                    background: transparent !important;
+                    border: none !important;
+                    padding: 8px 12px 14px 12px !important;
+                    height: auto !important;
+                }
+
+                .stTabs [data-baseweb="tab"] p, 
+                .stTabs [data-baseweb="tab"] span {
                     font-size: 19px !important;
                     font-weight: 700 !important;
                     color: #94A3B8 !important;
                 }
 
-                div[data-testid="column"] button[kind="secondary"]:hover p {
+                .stTabs [data-baseweb="tab"]:hover p,
+                .stTabs [data-baseweb="tab"]:hover span {
                     color: #475569 !important;
                 }
 
-                .aba-ativa-container button {
+                .stTabs [data-baseweb="tab"][aria-selected="true"] {
+                    background-color: transparent !important;
+                    border: none !important;
                     border-bottom: 3.5px solid #2563EB !important;
+                    border-radius: 0px !important;
                 }
-                .aba-ativa-container button p {
+
+                .stTabs [data-baseweb="tab"][aria-selected="true"] p,
+                .stTabs [data-baseweb="tab"][aria-selected="true"] span {
                     color: #0F172A !important;
                     font-weight: 900 !important;
+                }
+
+                .stTabs [data-baseweb="tab-highlight"] {
+                    display: none !important;
+                }
+                .stTabs [data-baseweb="tab-border"] {
+                    display: none !important;
                 }
 
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
@@ -580,36 +624,17 @@ else:
         return t_atual, t_ant
 
     # ==========================================
-    # BARRA DE ABAS PERSONALIZADA (ESPACADA E COM DESTAQUE ATIVO)
+    # ABAS PRINCIPAIS COM st.tabs
     # ==========================================
-    if "aba_ativa" not in st.session_state:
-        st.session_state["aba_ativa"] = "🔄 Operação Reversa"
-
-    col_tab1, col_tab2, col_tab_espaco = st.columns([2.2, 1.8, 6])
-
-    with col_tab1:
-        classe_tab1 = "aba-ativa-container" if st.session_state["aba_ativa"] == "🔄 Operação Reversa" else ""
-        st.markdown(f"<div class='{classe_tab1}'>", unsafe_allow_html=True)
-        if st.button("🔄 Operação Reversa", key="btn_aba_reversa", use_container_width=True):
-            st.session_state["aba_ativa"] = "🔄 Operação Reversa"
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with col_tab2:
-        classe_tab2 = "aba-ativa-container" if st.session_state["aba_ativa"] == "💰 Vendas" else ""
-        st.markdown(f"<div class='{classe_tab2}'>", unsafe_allow_html=True)
-        if st.button("💰 Vendas", key="btn_aba_vendas", use_container_width=True):
-            st.session_state["aba_ativa"] = "💰 Vendas"
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Linha horizontal sutil inferior que percorre toda a barra
-    st.markdown("<div style='border-bottom: 1.5px solid #1E293B; margin-top: -16px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+    aba_reversa, aba_vendas = st.tabs([
+        "🔄 Operação Reversa", 
+        "💰 Vendas"
+    ])
 
     # ==========================================
     # ABA: OPERAÇÃO REVERSA
     # ==========================================
-    if st.session_state["aba_ativa"] == "🔄 Operação Reversa":
+    with aba_reversa:
         mask_reversa = pd.Series(True, index=df_raw_reversa.index)
         mask_resumo = pd.Series(True, index=df_raw_resumo.index)
 
@@ -1122,7 +1147,7 @@ else:
     # ==========================================
     # ABA: VENDAS (BOLETIM INDIVIDUAL)
     # ==========================================
-    elif st.session_state["aba_ativa"] == "💰 Vendas":
+    with aba_vendas:
         target_seller_v = seller_selecionado if empresa_usuario.upper() == "DAFITI" else empresa_usuario
         target_str_v = str(target_seller_v).strip().upper()
 
