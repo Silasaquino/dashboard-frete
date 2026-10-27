@@ -324,6 +324,7 @@ else:
         df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
         df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
         df_res_rcc = carregar_aba_vendas_resumo("RESUMO_RCC")
+        df_res_can = carregar_aba_vendas_resumo("RESUMO_CAN")
         df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
         df_res_prejudicado = carregar_aba_vendas_resumo("RESUMO_PREJUDICADO")
         df_res_sva = carregar_aba_vendas_resumo("RESUMO_SVA")
@@ -1165,6 +1166,7 @@ else:
         f_expedicao = filtrar_vendas(df_res_expedicao)
         f_caf = filtrar_vendas(df_res_caf)
         f_rcc = filtrar_vendas(df_res_rcc)
+        f_can = filtrar_vendas(df_res_can)
         f_entregas = filtrar_vendas(df_res_entregas)
         f_prejudicado = filtrar_vendas(df_res_prejudicado)
         f_sva = filtrar_vendas(df_res_sva)
@@ -1571,16 +1573,17 @@ else:
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
         c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
 
-        # 1. Cancelado (Seller) - Diretamente da soma real da coluna 'caf' da aba RESUMO_CAF
+        # 1. Cancelado (Seller) - Soma real do campo 'caf' da aba RESUMO_CAF
         if not f_caf.empty and 'caf' in f_caf.columns:
             c_sel = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # 2. Falha na Coleta - Diretamente da soma real da coluna 'rcc' da aba RESUMO_RCC
+        # 2. Falha na Coleta - Soma real do campo 'rcc' da aba RESUMO_RCC
         if not f_rcc.empty and 'rcc' in f_rcc.columns:
             c_col = int(pd.to_numeric(f_rcc['rcc'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # 3. Cancelado (Cliente)
-        c_cli = 0
+        # 3. Cancelado (Cliente) - Soma real do campo 'can' da aba RESUMO_CAN
+        if not f_can.empty and 'can' in f_can.columns:
+            c_cli = int(pd.to_numeric(f_can['can'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
         # 4. Valor Prejudicado
         if not f_prejudicado.empty and 'valor_prej' in f_prejudicado.columns:
