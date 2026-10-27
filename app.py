@@ -323,6 +323,7 @@ else:
 
         df_res_expedicao = carregar_aba_vendas_resumo("RESUMO VENDAS_EXPEDIÇÃO")
         df_res_caf = carregar_aba_vendas_resumo("RESUMO_CAF")
+        df_res_rcc = carregar_aba_vendas_resumo("RESUMO_RCC")
         df_res_entregas = carregar_aba_vendas_resumo("RESUMO_ENTREGAS")
         df_res_prejudicado = carregar_aba_vendas_resumo("RESUMO_PREJUDICADO")
         df_res_sva = carregar_aba_vendas_resumo("RESUMO_SVA")
@@ -1163,6 +1164,7 @@ else:
 
         f_expedicao = filtrar_vendas(df_res_expedicao)
         f_caf = filtrar_vendas(df_res_caf)
+        f_rcc = filtrar_vendas(df_res_rcc)
         f_entregas = filtrar_vendas(df_res_entregas)
         f_prejudicado = filtrar_vendas(df_res_prejudicado)
         f_sva = filtrar_vendas(df_res_sva)
@@ -1569,11 +1571,19 @@ else:
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
         c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
 
+        tot_caf = 0
         if not f_caf.empty and 'caf' in f_caf.columns:
             tot_caf = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
-            c_sel = int(tot_caf * 0.6)
-            c_col = int(tot_caf * 0.25)
-            c_cli = tot_caf - (c_sel + c_col)
+
+        # Cálculo exato a partir da soma da coluna 'rcc' da aba RESUMO_RCC
+        c_rcc_real = 0
+        if not f_rcc.empty and 'rcc' in f_rcc.columns:
+            c_rcc_real = int(pd.to_numeric(f_rcc['rcc'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
+
+        # Falha na Coleta recebe exatamente a soma real de RCC (sem percentual estimado)
+        c_col = c_rcc_real
+        c_sel = max(0, int((tot_caf - c_col) * 0.75))
+        c_cli = max(0, tot_caf - (c_sel + c_col))
 
         if not f_prejudicado.empty and 'valor_prej' in f_prejudicado.columns:
             serie_prej = (
