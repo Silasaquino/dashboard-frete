@@ -843,7 +843,7 @@ else:
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
                     <div style='font-size: 42px; font-weight: 900; color: {cor_sac_v}; margin: 6px 0 2px 0;'>{v_sac_v:.2f}%</div>
                     <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac_v:.2f}%</div>
-                    <div style='background-color: {bg_sac_v}; color: {cor_sac_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                    <div style='background-color: {bg_caf_v}; color: {cor_sac_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
                         {diag_sac_v}
                     </div>
                 </div>
