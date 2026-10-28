@@ -339,9 +339,23 @@ else:
     with col_seller_topo:
         st.markdown("<span style='font-size:12px; font-weight:800; color:#9CA3AF; letter-spacing:1px;'>🎯 SELEÇÃO DE SELLER</span>", unsafe_allow_html=True)
         if empresa_usuario.upper() == "DAFITI":
-            sellers_rev = set(df_raw_reversa['seller_name'].dropna().unique()) if 'seller_name' in df_raw_reversa.columns else set()
-            sellers_vend = set(df_res_expedicao['nome_seller'].dropna().unique()) if 'nome_seller' in df_res_expedicao.columns else set()
-            sellers_totais = sorted([str(s) for s in (sellers_rev | sellers_vend) if s and str(s).lower() not in ['n/a', 'nan', 'none']])
+            sellers_rev = {
+                str(s).strip().upper() 
+                for s in df_raw_reversa['seller_name'].dropna().unique() 
+                if str(s).strip() != ""
+            } if 'seller_name' in df_raw_reversa.columns else set()
+            
+            sellers_vend = {
+                str(s).strip().upper() 
+                for s in df_res_expedicao['nome_seller'].dropna().unique() 
+                if str(s).strip() != ""
+            } if 'nome_seller' in df_res_expedicao.columns else set()
+            
+            sellers_totais = sorted([
+                s for s in (sellers_rev | sellers_vend) 
+                if s and s.lower() not in ['n/a', 'nan', 'none', 'null']
+            ])
+            
             lista_sellers_global = ["Todos"] + sellers_totais
             seller_selecionado = st.selectbox("Selecione o Seller", lista_sellers_global, index=0, label_visibility="collapsed")
         else:
@@ -864,6 +878,8 @@ else:
                 fig_sla_col.add_hline(y=95, line_dash="dash", line_color="#F59E0B", annotation_text="META: 95%", annotation_position="top left")
                 fig_sla_col.update_traces(textposition='outside')
                 fig_sla_col.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                     height=260,
                     showlegend=False,
                     xaxis_title="",
@@ -946,6 +962,8 @@ else:
                 fig_dias = px.bar(df_dist_dias, x='faixa', y='quantidade', text='quantidade', template=template_plotly, color_discrete_sequence=['#F59E0B'])
                 fig_dias.update_traces(textposition='outside')
                 fig_dias.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                     height=240,
                     margin=dict(l=20, r=20, t=20, b=20),
                     xaxis=dict(showgrid=False),
@@ -1073,6 +1091,8 @@ else:
                         max_y = df_sva_group['contagem_doc_dft'].max() if not df_sva_group.empty else 100
                         fig_sva_c.update_traces(textposition='outside')
                         fig_sva_c.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
                             height=250,
                             margin=dict(l=20, r=20, t=30, b=20),
                             xaxis=dict(showgrid=False, title="qtd_sva", type='category'),
