@@ -1184,8 +1184,10 @@ else:
             unsafe_allow_html=True
         )
 
-        # 1. FILTRO DE VISÃO E PERÍODO (BASE DETALHADA)
-        col_filtro_tipo, col_filtro_mes = st.columns([1, 1])
+        # ----------------------------------------------------
+        # 1. FILTROS DE VISÃO, PERÍODO, TRACKING E SUB-TRACKING
+        # ----------------------------------------------------
+        col_filtro_tipo, col_filtro_mes, col_filtro_track, col_filtro_sub = st.columns([1.1, 1, 1, 1])
 
         with col_filtro_tipo:
             st.markdown("<b>📅 Escolha o Tipo de Visão:</b>", unsafe_allow_html=True)
@@ -1216,11 +1218,50 @@ else:
                 label_visibility="collapsed"
             )
 
-        df_base_reversa_periodo = df_filtrado_reversa.copy()
-        if mes_selecionado != "Todos" and coluna_data_alvo in df_base_reversa_periodo.columns:
-            df_base_reversa_periodo = df_base_reversa_periodo[
-                df_base_reversa_periodo[coluna_data_alvo].astype(str) == mes_selecionado
-            ]
+        # Base pré-filtrada por período para listar os trackings válidos
+        df_base_previa = df_filtrado_reversa.copy()
+        if mes_selecionado != "Todos" and coluna_data_alvo in df_base_previa.columns:
+            df_base_previa = df_base_previa[df_base_previa[coluna_data_alvo].astype(str) == mes_selecionado]
+
+        if 'tracking' in df_base_previa.columns:
+            trackings_unicos = sorted([str(t).strip() for t in df_base_previa['tracking'].dropna().unique() if str(t).strip() != ""])
+            opcoes_tracking = ["Todos"] + trackings_unicos
+        else:
+            opcoes_tracking = ["Todos"]
+
+        with col_filtro_track:
+            st.markdown("<b>🚚 Tracking:</b>", unsafe_allow_html=True)
+            tracking_selecionado = st.selectbox(
+                "Selecione o Tracking",
+                opcoes_tracking,
+                index=0,
+                label_visibility="collapsed"
+            )
+
+        # Base filtrada por período e tracking para calcular os sub-trackings válidos
+        df_base_pre_sub = df_base_previa.copy()
+        if tracking_selecionado != "Todos" and 'tracking' in df_base_pre_sub.columns:
+            df_base_pre_sub = df_base_pre_sub[df_base_pre_sub['tracking'].astype(str).str.strip().str.upper() == str(tracking_selecionado).strip().upper()]
+
+        if 'sub_tracking' in df_base_pre_sub.columns:
+            sub_trackings_unicos = sorted([str(s).strip() for s in df_base_pre_sub['sub_tracking'].dropna().unique() if str(s).strip() != ""])
+            opcoes_sub_tracking = ["Todos"] + sub_trackings_unicos
+        else:
+            opcoes_sub_tracking = ["Todos"]
+
+        with col_filtro_sub:
+            st.markdown("<b>🏷️ Sub-Tracking:</b>", unsafe_allow_html=True)
+            sub_tracking_selecionado = st.selectbox(
+                "Selecione o Sub-Tracking",
+                opcoes_sub_tracking,
+                index=0,
+                label_visibility="collapsed"
+            )
+
+        # Aplicação final dos 3 filtros na base da Reversa
+        df_base_reversa_periodo = df_base_pre_sub.copy()
+        if sub_tracking_selecionado != "Todos" and 'sub_tracking' in df_base_reversa_periodo.columns:
+            df_base_reversa_periodo = df_base_reversa_periodo[df_base_reversa_periodo['sub_tracking'].astype(str).str.strip().str.upper() == str(sub_tracking_selecionado).strip().upper()]
 
         st.write("")
 
