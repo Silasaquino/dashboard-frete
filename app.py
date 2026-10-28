@@ -226,10 +226,10 @@ else:
         colunas_desejadas = [
             'data_solicitacao', 'mes_ano_solicitacao', 'tipo_solicitacao', 'seller_name',
             'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
-            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'grupo_aberto_seller',
-            'auto_postagem', 'object_tag_number', 'status_rastreio', 'data_postagem',
-            'data_ultimo_status_correios', 'ultimo_status_correios', 'sku', 'quantidade',
-            'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
+            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'sub_tracking',
+            'grupo_aberto_seller', 'auto_postagem', 'object_tag_number', 'status_rastreio',
+            'data_postagem', 'data_ultimo_status_correios', 'ultimo_status_correios',
+            'sku', 'quantidade', 'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
         ]
 
         for item in PLANILHAS_BASE_CONFIG:
@@ -1437,7 +1437,7 @@ else:
 
         st.write("---")
 
-        # 4. GRÁFICOS: VOLUME MENSAL, MOTIVOS E FAIXAS DE ATRASO
+        # 4. GRÁFICOS: VOLUME MENSAL, MOTIVOS, TOP SKUS E ATRASO DO SELLER
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
 
@@ -1478,7 +1478,11 @@ else:
             st.plotly_chart(fig_tempo, use_container_width=True)
 
         st.write("")
-        col_graf_mot, col_graf_grupo = st.columns(2)
+        
+        # ----------------------------------------------------
+        # BLOCO 1: MOTIVOS DE TROCA & TOP 10 SKUs (LADO A LADO)
+        # ----------------------------------------------------
+        col_graf_mot, col_graf_sku = st.columns(2)
 
         with col_graf_mot:
             st.subheader("🔍 Principais Motivos de Troca")
@@ -1507,7 +1511,7 @@ else:
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     margin=dict(l=20, r=120, t=30, b=20),
-                    height=380,
+                    height=400,
                     xaxis=dict(range=[0, max_mot * 1.45], showgrid=False),
                     yaxis=dict(showgrid=False),
                     xaxis_title="Remessas Únicas",
@@ -1517,119 +1521,119 @@ else:
             else:
                 st.info("Sem dados de motivos registrados.")
 
-        with col_graf_grupo:
-            st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
-            if 'tracking' in df_base_reversa_periodo.columns and 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-                df_entregue_seller = df_base_reversa_periodo[
-                    df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
-                ]
-
-                if not df_entregue_seller.empty:
-                    df_grupo_seller = df_entregue_seller['grupo_aberto_seller'].value_counts().reset_index()
-                    df_grupo_seller.columns = ['grupo_dias', 'quantidade']
-                    total_grupo = df_grupo_seller['quantidade'].sum()
-
-                    df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
-                        lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".") if total_grupo > 0 else "0"
-                    )
-
-                    df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("5 DIAS" in g and "+" in g) else g)
-
-                    fig_grupo_seller = px.bar(
-                        df_grupo_seller,
-                        x='grupo_exibicao',
-                        y='quantidade',
-                        text='rotulo',
-                        template=template_plotly,
-                        color='grupo_exibicao',
-                        color_discrete_map={
-                            '⚠️ +5 DIAS CORRIDOS': '#EF4444',
-                            '0 DIAS CORRIDOS': '#94A3B8',
-                            '1 DIAS CORRIDOS': '#60A5FA',
-                            '2 DIAS CORRIDOS': '#3B82F6',
-                            '3 DIAS CORRIDOS': '#2563EB',
-                            '4 DIAS CORRIDOS': '#1D4ED8',
-                            '5 DIAS CORRIDOS': '#F59E0B'
-                        }
-                    )
-                    max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
-                    fig_grupo_seller.update_traces(textposition='outside')
-                    fig_grupo_seller.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=20, r=20, t=30, b=20),
-                        height=380,
-                        xaxis=dict(showgrid=False),
-                        yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig_grupo_seller, use_container_width=True)
+        with col_graf_sku:
+            st.subheader("🏷️ Top 10 SKUs com Maior Volume de Devolução")
+            if 'sku' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_sku_calc = df_base_reversa_periodo.copy()
+                if 'quantidade' in df_sku_calc.columns:
+                    df_sku_calc['qtd_num'] = pd.to_numeric(
+                        df_sku_calc['quantidade'].astype(str).str.replace(',', '.'), errors='coerce'
+                    ).fillna(1)
                 else:
-                    st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período selecionado.")
+                    df_sku_calc['qtd_num'] = 1
 
-        # ----------------------------------------------------
-        # TOP 10 SKUs POR QUANTIDADE DEVOLVIDA (APÓS MOTIVOS DE TROCA)
-        # ----------------------------------------------------
-        st.write("")
-        st.subheader("🏷️ Top 10 SKUs com Maior Volume de Devolução")
-        if 'sku' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
-            df_sku_calc = df_base_reversa_periodo.copy()
-            if 'quantidade' in df_sku_calc.columns:
-                df_sku_calc['qtd_num'] = pd.to_numeric(
-                    df_sku_calc['quantidade'].astype(str).str.replace(',', '.'), errors='coerce'
-                ).fillna(1)
+                df_sku_calc = df_sku_calc[df_sku_calc['sku'].dropna().astype(str).str.strip() != '']
+                df_top_sku = df_sku_calc.groupby('sku', as_index=False)['qtd_num'].sum()
+                df_top_sku.rename(columns={'qtd_num': 'total_quantidade'}, inplace=True)
+
+                total_geral_skus = df_top_sku['total_quantidade'].sum()
+
+                df_top_sku = (
+                    df_top_sku
+                    .sort_values('total_quantidade', ascending=False)
+                    .head(10)
+                    .sort_values('total_quantidade', ascending=True)
+                )
+
+                df_top_sku['rotulo'] = df_top_sku['total_quantidade'].apply(
+                    lambda v: f"{int(v):,} ({(v / total_geral_skus) * 100:.1f}%)".replace(",", ".") if total_geral_skus > 0 else "0"
+                )
+
+                fig_top_sku = px.bar(
+                    df_top_sku,
+                    x='total_quantidade',
+                    y='sku',
+                    text='rotulo',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+
+                max_sku = df_top_sku['total_quantidade'].max() if not df_top_sku.empty else 100
+                fig_top_sku.update_traces(textposition='outside')
+                fig_top_sku.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=120, t=30, b=20),
+                    height=400,
+                    xaxis=dict(range=[0, max_sku * 1.35], showgrid=False),
+                    yaxis=dict(showgrid=False, type='category'),
+                    xaxis_title="Quantidade Devolvida",
+                    yaxis_title="SKU"
+                )
+                st.plotly_chart(fig_top_sku, use_container_width=True)
             else:
-                df_sku_calc['qtd_num'] = 1
-
-            df_sku_calc = df_sku_calc[df_sku_calc['sku'].dropna().astype(str).str.strip() != '']
-            df_top_sku = df_sku_calc.groupby('sku', as_index=False)['qtd_num'].sum()
-            df_top_sku.rename(columns={'qtd_num': 'total_quantidade'}, inplace=True)
-
-            total_geral_skus = df_top_sku['total_quantidade'].sum()
-
-            df_top_sku = (
-                df_top_sku
-                .sort_values('total_quantidade', ascending=False)
-                .head(10)
-                .sort_values('total_quantidade', ascending=True)
-            )
-
-            df_top_sku['rotulo'] = df_top_sku['total_quantidade'].apply(
-                lambda v: f"{int(v):,} ({(v / total_geral_skus) * 100:.1f}%)".replace(",", ".") if total_geral_skus > 0 else "0"
-            )
-
-            fig_top_sku = px.bar(
-                df_top_sku,
-                x='total_quantidade',
-                y='sku',
-                text='rotulo',
-                orientation='h',
-                template=template_plotly,
-                color_discrete_sequence=[cor_grafico]
-            )
-
-            max_sku = df_top_sku['total_quantidade'].max() if not df_top_sku.empty else 100
-            fig_top_sku.update_traces(textposition='outside')
-            fig_top_sku.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=20, r=120, t=30, b=20),
-                height=380,
-                xaxis=dict(range=[0, max_sku * 1.35], showgrid=False),
-                yaxis=dict(showgrid=False, type='category'),
-                xaxis_title="Quantidade Devolvida",
-                yaxis_title="SKU"
-            )
-            st.plotly_chart(fig_top_sku, use_container_width=True)
-        else:
-            st.info("Sem dados de SKU registrados para o período selecionado.")
+                st.info("Sem dados de SKU registrados para o período selecionado.")
 
         st.write("")
         st.write("---")
 
         # ----------------------------------------------------
-        # 5. JORNADA DO TRACKING SEQUENCIAL
+        # BLOCO 2: PACOTES COM O SELLER (EM SEGUIDA DOS DOIS)
         # ----------------------------------------------------
+        st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
+        if 'tracking' in df_base_reversa_periodo.columns and 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+            df_entregue_seller = df_base_reversa_periodo[
+                df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'
+            ]
+
+            if not df_entregue_seller.empty:
+                df_grupo_seller = df_entregue_seller['grupo_aberto_seller'].value_counts().reset_index()
+                df_grupo_seller.columns = ['grupo_dias', 'quantidade']
+                total_grupo = df_grupo_seller['quantidade'].sum()
+
+                df_grupo_seller['rotulo'] = df_grupo_seller['quantidade'].apply(
+                    lambda v: f"{v:,} ({(v / total_grupo) * 100:.1f}%)".replace(",", ".") if total_grupo > 0 else "0"
+                )
+
+                df_grupo_seller['grupo_exibicao'] = df_grupo_seller['grupo_dias'].astype(str).apply(lambda g: "⚠️ +5 DIAS CORRIDOS" if ("5 DIAS" in g and "+" in g) else g)
+
+                fig_grupo_seller = px.bar(
+                    df_grupo_seller,
+                    x='grupo_exibicao',
+                    y='quantidade',
+                    text='rotulo',
+                    template=template_plotly,
+                    color='grupo_exibicao',
+                    color_discrete_map={
+                        '⚠️ +5 DIAS CORRIDOS': '#EF4444',
+                        '0 DIAS CORRIDOS': '#94A3B8',
+                        '1 DIAS CORRIDOS': '#60A5FA',
+                        '2 DIAS CORRIDOS': '#3B82F6',
+                        '3 DIAS CORRIDOS': '#2563EB',
+                        '4 DIAS CORRIDOS': '#1D4ED8',
+                        '5 DIAS CORRIDOS': '#F59E0B'
+                    }
+                )
+                max_grupo = df_grupo_seller['quantidade'].max() if not df_grupo_seller.empty else 100
+                fig_grupo_seller.update_traces(textposition='outside')
+                fig_grupo_seller.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    height=380,
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(range=[0, max_grupo * 1.25], showgrid=False),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_grupo_seller, use_container_width=True)
+            else:
+                st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período selecionado.")
+
+        st.write("")
+        st.write("---")
+
+        # 5. JORNADA DO TRACKING SEQUENCIAL
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
             df_tracking = df_base_reversa_periodo['tracking'].value_counts().reset_index()
