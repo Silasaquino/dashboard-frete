@@ -702,7 +702,6 @@ else:
         v_exp_v, a_exp_v = calcular_taxas_com_corte(f_expedicao, 'expedicao_no_prazo', 'total', 'mes_ano_definido')
         v_caf_v, a_caf_v = calcular_taxas_com_corte(f_caf, 'caf', 'qtd', 'mes_ano_compra')
 
-        # Resumo da Reversa para métricas de Devolução e SAC
         mask_resumo_ref = pd.Series(True, index=df_raw_resumo.index)
         if target_seller_v != "Todos" and 'nome_seller' in df_raw_resumo.columns:
             mask_resumo_ref &= (df_raw_resumo['nome_seller'].astype(str).str.strip().str.upper() == target_str_v)
@@ -1627,7 +1626,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 5. JORNADA DO TRACKING SEQUENCIAL COM RAMIFICAÇÃO (SUB-TRACKING)
+        # 5. JORNADA DO TRACKING SEQUENCIAL COM SETAS E SUB-TRACKING COLORIDO
         # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
@@ -1638,16 +1637,26 @@ else:
             qtd_entregue = len(df_base_reversa_periodo[df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'ENTREGUE AO SELLER'])
             qtd_finalizado = len(df_base_reversa_periodo[df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'FINALIZADO'])
 
-            x_main = [1.0, 2.0, 3.0, 4.0]
+            x_main = [1.0, 2.2, 3.4, 4.6]
             y_main = [0.8, 3.2, 0.8, 3.2]
 
             fig_jornada = go.Figure()
 
-            fig_jornada.add_trace(go.Scatter(
-                x=x_main, y=y_main, mode='lines',
-                line=dict(color='#64748B', width=3, dash='dash'),
-                hoverinfo='skip', showlegend=False
-            ))
+            # Setas direcionadas espaçadas conectando o fluxo principal
+            for i in range(len(x_main) - 1):
+                fig_jornada.add_annotation(
+                    x=x_main[i + 1] - 0.12,
+                    y=y_main[i + 1] + (0.12 if y_main[i] > y_main[i + 1] else -0.12),
+                    ax=x_main[i] + 0.12,
+                    ay=y_main[i] + (-0.12 if y_main[i] > y_main[i + 1] else 0.12),
+                    xref="x", yref="y",
+                    axref="x", ayref="y",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.2,
+                    arrowwidth=2.5,
+                    arrowcolor="#64748B"
+                )
 
             pontos_principais = [
                 {"nome": "EM ABERTO", "qtd": qtd_aberto, "cor": "#F59E0B", "pos": "bottom center"},
@@ -1672,6 +1681,14 @@ else:
                     showlegend=False, hoverinfo='text'
                 ))
 
+            # Mapeamento oficial de cores do sub_tracking
+            mapa_cores_sub = {
+                'ENTRADA NO SELLER': '#10B981',    # Verde
+                'REVERSAS EXPIRADAS': '#F59E0B',   # Laranja
+                'RECUSA SELLER': '#991B1B',        # Vermelho Escuro
+                'EXTRAVIO': '#EF4444'              # Vermelho Vivo
+            }
+
             df_finalizados = df_base_reversa_periodo[df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'FINALIZADO']
             
             if 'sub_tracking' in df_finalizados.columns and not df_finalizados.empty:
@@ -1689,19 +1706,16 @@ else:
                     {'sub_status': 'EXTRAVIO', 'qtd': max(0, qtd_finalizado - int(qtd_finalizado * 0.97))}
                 ])
 
-            origem_x = 4.0
-            origem_y = 3.2
-            destino_x = 5.6
+            ordem_sub = ['ENTRADA NO SELLER', 'REVERSAS EXPIRADAS', 'EXTRAVIO', 'RECUSA SELLER']
+            df_sub['ordem'] = df_sub['sub_status'].str.upper().apply(lambda s: ordem_sub.index(s) if s in ordem_sub else 99)
+            df_sub = df_sub.sort_values('ordem')
+
+            origem_x = x_main[-1]
+            origem_y = y_main[-1]
+            destino_x = 6.4
 
             num_subs = min(len(df_sub), 4)
-            if num_subs == 1:
-                y_ramificacoes = [3.2]
-            elif num_subs == 2:
-                y_ramificacoes = [3.8, 2.6]
-            elif num_subs == 3:
-                y_ramificacoes = [3.8, 3.2, 2.6]
-            else:
-                y_ramificacoes = [3.8, 2.8, 1.8, 0.8]
+            y_ramificacoes = [3.8, 2.8, 1.8, 0.8][:num_subs] if num_subs == 4 else [3.8, 2.6][:num_subs]
 
             for i, row in df_sub.head(num_subs).iterrows():
                 sub_nome = str(row['sub_status']).upper().strip()
@@ -1709,29 +1723,36 @@ else:
                 sub_pct = (sub_qtd / qtd_finalizado * 100) if qtd_finalizado > 0 else 0
                 sub_y = y_ramificacoes[i]
                 sub_qtd_fmt = f"{sub_qtd:,}".replace(",", ".")
+                cor_sub = mapa_cores_sub.get(sub_nome, '#38BDF8')
 
                 fig_jornada.add_annotation(
-                    x=destino_x,
+                    x=destino_x - 0.15,
                     y=sub_y,
                     ax=origem_x + 0.15,
                     ay=origem_y,
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
+                    xref="x", yref="y",
+                    axref="x", ayref="y",
                     showarrow=True,
                     arrowhead=2,
                     arrowsize=1.2,
                     arrowwidth=2,
-                    arrowcolor="#38BDF8"
+                    arrowcolor=cor_sub
                 )
 
+                fig_jornada.add_trace(go.Scatter(
+                    x=[destino_x],
+                    y=[sub_y],
+                    mode='markers',
+                    marker=dict(size=18, color=cor_sub, line=dict(color='white', width=2)),
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
+
                 fig_jornada.add_annotation(
-                    x=destino_x + 0.1,
+                    x=destino_x + 0.15,
                     y=sub_y,
-                    xref="x",
-                    yref="y",
-                    text=f"<b>{sub_nome}</b><br><span style='font-size:13px; color:#38BDF8;'><b>{sub_qtd_fmt}</b> ({sub_pct:.1f}%)</span>",
+                    xref="x", yref="y",
+                    text=f"<b>{sub_nome}</b><br><span style='font-size:13px; color:{cor_sub};'><b>{sub_qtd_fmt}</b> ({sub_pct:.1f}%)</span>",
                     showarrow=False,
                     xanchor="left",
                     font=dict(size=12, color="#FFFFFF" if tema_selecionado == "Escuro 🌙" else "#0F172A")
@@ -1740,9 +1761,9 @@ else:
             fig_jornada.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=40, r=180, t=60, b=60),
+                margin=dict(l=40, r=200, t=60, b=60),
                 height=460,
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 7.8]),
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0.4, 8.8]),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.2, 4.4])
             )
             st.plotly_chart(fig_jornada, use_container_width=True)
