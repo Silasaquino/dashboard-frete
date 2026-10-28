@@ -1279,13 +1279,31 @@ else:
 
         # 9. MEMORIAL DE CÁLCULO - VENDAS
         st.markdown("""
-            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8;'>
-                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
-                <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
-                <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
-                <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
-                <p style='margin: 4px 0;'>• <b>Linha do tempo de vencimentos:</b> Dias até o vencimento da entrega (Entregas em Aberto).</p>
-                <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
+            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13.5px; color: #CBD5E1; line-height: 1.8;'>
+                <h4 style='color: #FFFFFF; font-size: 17px; font-weight: 800; margin: 0 0 16px 0;'>📊 Memorial de Cálculo: Entenda seus Indicadores de Operação</h4>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>1. Status da Loja</p>
+                <p style='margin: 0 0 12px 10px;'>🚦 <b>Status da Loja:</b> Baseado na última movimentação de expedição ou coleta. Até 3 dias: normal; de 4 a 6 dias: atenção; 7 dias ou mais: a loja é considerada inativa ou em estado crítico.</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>2. Qualidade e Atendimento</p>
+                <p style='margin: 0 0 4px 10px;'>⏱️ <b>SLA de Expedição:</b> Monitoramos se a postagem/coleta ocorreu até a data limite prometida (Fórmula: Expedição no Prazo ÷ Total Expedido × 100). Meta: ≥ 95%.</p>
+                <p style='margin: 0 0 4px 10px;'>🚫 <b>Taxa de Cancelamento (CAF):</b> Total de itens cancelados por responsabilidade do Seller sobre o total de peças vendidas no período de apuração (Meta: ≤ 2%).</p>
+                <p style='margin: 0 0 4px 10px;'>↩️ <b>Taxa de Devolução:</b> Considera pedidos com devolução confirmada em estoque sobre o total expedido no período (Meta: ≤ 9%).</p>
+                <p style='margin: 0 0 12px 10px;'>🎧 <b>Contatos SAC:</b> Monitora os pedidos expedidos que geraram acionamento no atendimento ao cliente referente à entrega (Meta: ≤ 5%).</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>3. Pedidos em Aberto (Backlog de Expedição)</p>
+                <p style='margin: 0 0 4px 10px;'>📁 <b>Status dos Pedidos:</b> Acompanhamento exclusivo de pedidos pagos e ativos que ainda não possuem registro de despacho/coleta física.</p>
+                <p style='margin: 0 0 12px 10px;'>📅 <b>Cálculo de Atraso:</b> Fórmula: (Data de Hoje) − (Data Limite de Expedição). Pedidos já expedidos, extraviados ou cancelados não entram nesta contagem.</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>4. Entregas e Linha do Tempo de Vencimentos</p>
+                <p style='margin: 0 0 12px 10px;'>🚚 <b>Performance de Entrega:</b> Avalia se a remessa foi entregue ao cliente final dentro da promessa estipulada. A linha do tempo projeta as entregas em aberto calculando a diferença entre a <i>Data de Promessa ao Cliente</i> e a <i>Data Atual</i>, separando em atrasados, vencimentos do dia e prazos futuros.</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>5. Cancelamentos e Financeiro</p>
+                <p style='margin: 0 0 14px 10px;'>💰 <b>Valor Prejudicado (Impacto Financeiro):</b> Soma do valor total transacionado (R$) de pedidos cancelados por ruptura (CAF), cancelamentos de clientes (CAN) e falhas operacionais na coleta (RCC).</p>
+                
+                <div style='background-color: #0F172A; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8;'>
+                    ⚠️ <b>Regra de Período Oficial:</b> Até o <b>dia 04</b> são consolidados os dados fechados do mês anterior. A partir do <b>dia 05</b>, passam a vigorar os dados acumulados do mês corrente (baseados na data de promessa ao cliente para Dropshipping e data de pagamento para Dafiti Envios/Milkrun).
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -2160,12 +2178,25 @@ else:
 
         # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA (EXCLUSIVO)
         st.markdown("""
-            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8; margin-bottom: 25px;'>
-                <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação Reversa</h4>
-                <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
-                <p style='margin: 4px 0;'>• <b>Taxa de Devolução (%):</b> Relação entre o total de peças devolvidas concluídas e o total de peças expedidas (Meta: até 9.0%).</p>
-                <p style='margin: 4px 0;'>• <b>Dias em Aberto no Seller:</b> Tempo decorrido (em dias corridos) desde que o pacote obteve o status 'ENTREGUE AO SELLER' até a sua conferência e finalização (Alerta para pacotes com +5 dias corridos).</p>
-                <p style='margin: 4px 0;'>• <b>Jornada do Tracking:</b> Fluxo sequencial da logística reversa desde a geração da solicitação até o retorno e finalização no estoque do lojista com desdobramento dos sub-status finais.</p>
+            <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13.5px; color: #CBD5E1; line-height: 1.8; margin-bottom: 25px;'>
+                <h4 style='color: #FFFFFF; font-size: 17px; font-weight: 800; margin: 0 0 16px 0;'>📊 Memorial de Cálculo: Entenda seus Indicadores de Logística Reversa</h4>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>1. Taxa Oficial de Devolução</p>
+                <p style='margin: 0 0 12px 10px;'>↩️ <b>Fórmula:</b> Total de Peças com Entrada Confirmada no Seller (rem_date / bench_date) ÷ Total de Peças Expedidas no Período × 100. Meta oficial acordada: ≤ 9.0%.</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>2. Tempo de Permanência com o Seller (Backlog na Doca)</p>
+                <p style='margin: 0 0 12px 10px;'>📦 <b>Dias em Aberto no Seller:</b> Tempo decorrido (em dias corridos) desde que o transportador registrou o status <i>'ENTREGUE AO SELLER'</i> até a conferência e baixa fiscal/sistema. Pacotes na faixa <b>+5 Dias Corridos</b> indicam retenção crítica na doca e risco de acionamento do lojista.</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>3. Jornada e Desdobramento do Tracking</p>
+                <p style='margin: 0 0 4px 10px;'>🚚 <b>Etapas do Fluxo:</b> Acompanha o ciclo de vida desde a autorização de postagem gerada (<i>Em Aberto</i>), trânsito com o transportador (<i>Postado</i>), chegada ao lojista (<i>Entregue ao Seller</i>) até o fechamento definitivo (<i>Finalizado</i>).</p>
+                <p style='margin: 0 0 12px 10px;'>🏷️ <b>Sub-Status de Finalização:</b> Desdobra o encerramento em quatro ramificações: <b>Entrada no Seller</b> (aceito em estoque), <b>Recusa Seller</b> (reprovado na triagem), <b>Extravio</b> (sinistrado em rota) e <b>Reversas Expiradas</b> (autorização vencida sem envio pelo cliente).</p>
+                
+                <p style='margin: 0 0 4px 0; font-weight: 800; color: #60A5FA;'>4. Diagnóstico por Motivo, SKU e Categoria</p>
+                <p style='margin: 0 0 12px 10px;'>🔍 <b>Concentração de Falhas:</b> Identifica os 10 maiores ofensores em volume físico (peças devolvidas) e impacto financeiro (R$ em devolução), permitindo distinguir se a causa é atrito cadastral (ex: tamanho/tabela de medidas) ou defeito de produto.</p>
+                
+                <div style='background-color: #0F172A; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8;'>
+                    ⚠️ <b>Critério do Período Filtrado:</b> Os gráficos e listas detalhadas obedecem estritamente à seleção do menu superior: <i>Mês/Ano Solicitação</i> (data em que o cliente pediu a troca) ou <i>Mês/Ano Finalização</i> (data em que o processo foi concluído no lojista). O Card de Taxa (%) segue a regra de virada mensal (corte até dia 04 no mês anterior; dia 05 em diante no mês atual).
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
