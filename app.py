@@ -453,7 +453,6 @@ else:
                     display: none !important;
                 }
 
-                /* ALINHAMENTO PERFEITO DOS FILTROS EM LINHA */
                 .filtro-rotulo-topo {
                     height: 38px !important;
                     display: flex !important;
@@ -1249,7 +1248,6 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Base pré-filtrada por período
         df_base_previa = df_filtrado_reversa.copy()
         if mes_selecionado != "Todos" and coluna_data_alvo in df_base_previa.columns:
             df_base_previa = df_base_previa[df_base_previa[coluna_data_alvo].astype(str) == mes_selecionado]
@@ -1288,7 +1286,6 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Base final filtrada
         df_base_reversa_periodo = df_base_pre_sub.copy()
         if sub_tracking_selecionado != "Todos" and 'sub_tracking' in df_base_reversa_periodo.columns:
             df_base_reversa_periodo = df_base_reversa_periodo[df_base_reversa_periodo['sub_tracking'].astype(str).str.strip().str.upper() == str(sub_tracking_selecionado).strip().upper()]
@@ -1515,13 +1512,11 @@ else:
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
 
-        # Se selecionou um período específico, transforma em visão DIÁRIA desse mês
         eh_visao_diaria = (mes_selecionado != "Todos")
 
         if eh_visao_diaria:
             st.subheader(f"📅 Volume Diário de Remessas Únicas ({mes_selecionado})")
             
-            # Escolhe a coluna de data diária correspondente
             col_data_diaria = coluna_data_exata if (coluna_data_exata in df_base_reversa_periodo.columns and not df_base_reversa_periodo[coluna_data_exata].dropna().empty) else 'data_solicitacao'
             
             if col_data_diaria in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
@@ -1747,7 +1742,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 5. JORNADA DO TRACKING SEQUENCIAL COM SETAS E SUB-TRACKING COLORIDO
+        # 5. JORNADA DO TRACKING SEQUENCIAL (CORREÇÃO DO INDEXERROR)
         # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
@@ -1827,20 +1822,28 @@ else:
 
             ordem_sub = ['ENTRADA NO SELLER', 'REVERSAS EXPIRADAS', 'EXTRAVIO', 'RECUSA SELLER']
             df_sub['ordem'] = df_sub['sub_status'].str.upper().apply(lambda s: ordem_sub.index(s) if s in ordem_sub else 99)
-            df_sub = df_sub.sort_values('ordem')
+            df_sub = df_sub.sort_values('ordem').reset_index(drop=True)
 
             origem_x = x_main[-1]
             origem_y = y_main[-1]
             destino_x = 6.4
 
             num_subs = min(len(df_sub), 4)
-            y_ramificacoes = [3.8, 2.8, 1.8, 0.8][:num_subs] if num_subs == 4 else [3.8, 2.6][:num_subs]
+            if num_subs == 1:
+                y_ramificacoes = [3.2]
+            elif num_subs == 2:
+                y_ramificacoes = [3.8, 2.6]
+            elif num_subs == 3:
+                y_ramificacoes = [3.8, 3.0, 2.2]
+            else:
+                y_ramificacoes = [3.8, 2.8, 1.8, 0.8]
 
-            for i, row in df_sub.head(num_subs).iterrows():
+            lista_registros_sub = df_sub.head(num_subs).to_dict('records')
+            for seq_idx, row in enumerate(lista_registros_sub):
                 sub_nome = str(row['sub_status']).upper().strip()
                 sub_qtd = int(row['qtd'])
                 sub_pct = (sub_qtd / qtd_finalizado * 100) if qtd_finalizado > 0 else 0
-                sub_y = y_ramificacoes[i]
+                sub_y = y_ramificacoes[seq_idx]
                 sub_qtd_fmt = f"{sub_qtd:,}".replace(",", ".")
                 cor_sub = mapa_cores_sub.get(sub_nome, '#38BDF8')
 
