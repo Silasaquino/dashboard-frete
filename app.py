@@ -1567,10 +1567,69 @@ else:
                 else:
                     st.info("Não há pacotes com o status 'ENTREGUE AO SELLER' no período selecionado.")
 
+        # ----------------------------------------------------
+        # TOP 10 SKUs POR QUANTIDADE DEVOLVIDA (APÓS MOTIVOS DE TROCA)
+        # ----------------------------------------------------
+        st.write("")
+        st.subheader("🏷️ Top 10 SKUs com Maior Volume de Devolução")
+        if 'sku' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+            df_sku_calc = df_base_reversa_periodo.copy()
+            if 'quantidade' in df_sku_calc.columns:
+                df_sku_calc['qtd_num'] = pd.to_numeric(
+                    df_sku_calc['quantidade'].astype(str).str.replace(',', '.'), errors='coerce'
+                ).fillna(1)
+            else:
+                df_sku_calc['qtd_num'] = 1
+
+            df_sku_calc = df_sku_calc[df_sku_calc['sku'].dropna().astype(str).str.strip() != '']
+            df_top_sku = df_sku_calc.groupby('sku', as_index=False)['qtd_num'].sum()
+            df_top_sku.rename(columns={'qtd_num': 'total_quantidade'}, inplace=True)
+
+            total_geral_skus = df_top_sku['total_quantidade'].sum()
+
+            df_top_sku = (
+                df_top_sku
+                .sort_values('total_quantidade', ascending=False)
+                .head(10)
+                .sort_values('total_quantidade', ascending=True)
+            )
+
+            df_top_sku['rotulo'] = df_top_sku['total_quantidade'].apply(
+                lambda v: f"{int(v):,} ({(v / total_geral_skus) * 100:.1f}%)".replace(",", ".") if total_geral_skus > 0 else "0"
+            )
+
+            fig_top_sku = px.bar(
+                df_top_sku,
+                x='total_quantidade',
+                y='sku',
+                text='rotulo',
+                orientation='h',
+                template=template_plotly,
+                color_discrete_sequence=[cor_grafico]
+            )
+
+            max_sku = df_top_sku['total_quantidade'].max() if not df_top_sku.empty else 100
+            fig_top_sku.update_traces(textposition='outside')
+            fig_top_sku.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=20, r=120, t=30, b=20),
+                height=380,
+                xaxis=dict(range=[0, max_sku * 1.35], showgrid=False),
+                yaxis=dict(showgrid=False, type='category'),
+                xaxis_title="Quantidade Devolvida",
+                yaxis_title="SKU"
+            )
+            st.plotly_chart(fig_top_sku, use_container_width=True)
+        else:
+            st.info("Sem dados de SKU registrados para o período selecionado.")
+
         st.write("")
         st.write("---")
 
+        # ----------------------------------------------------
         # 5. JORNADA DO TRACKING SEQUENCIAL
+        # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>🚚 Jornada do Tracking (Fluxo Sequencial Reversa)</h3>", unsafe_allow_html=True)
         if 'tracking' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
             df_tracking = df_base_reversa_periodo['tracking'].value_counts().reset_index()
