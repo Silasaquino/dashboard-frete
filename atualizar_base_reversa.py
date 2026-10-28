@@ -60,6 +60,7 @@ QUERY_BASE = """
         data_extravio,
         mes_ano_finalizacao,
         tracking,
+        sub_tracking,
         dias_aberto_seller,
         CASE 
             WHEN dias_aberto_seller IS NULL THEN null
@@ -104,13 +105,21 @@ QUERY_BASE = """
                 WHEN rem_date IS NOT NULL THEN 'FINALIZADO'
                 WHEN der_date IS NOT NULL THEN 'FINALIZADO'
                 when src_status = 'return_rejected' THEN 'FINALIZADO'
-                WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
+                WHEN status_date_loss IS NOT NULL THEN 'FINALIZADO'
                 WHEN object_status_description = 'Entregue' THEN 'ENTREGUE AO SELLER'
                 WHEN history_status_description = 'Coletado' THEN 'POSTADO/TRANSPORTADOR'
                 WHEN type_request_king = 'Insucesso' THEN 'POSTADO/TRANSPORTADOR'
-                WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'REVERSAS EXPIRADAS'
+                WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'FINALIZADO'
                 ELSE 'EM ABERTO'
             END AS tracking,
+            CASE
+                WHEN rem_date IS NOT NULL THEN 'ENTRADA NO SELLER' 
+                WHEN der_date IS NOT NULL THEN 'RECUSA SELLER'
+                when src_status = 'return_rejected' THEN 'RECUSA SELLER'
+                WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
+                WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'REVERSAS EXPIRADAS'
+                else null
+                END AS sub_tracking,
             CASE
                 WHEN (
                     CASE
@@ -130,6 +139,7 @@ QUERY_BASE = """
         FROM curated_data.a_operation_returns
         WHERE 
           return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
+           and delivery_type in ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
         GROUP BY 
             return_order_date,
             type_request_king,
@@ -155,11 +165,11 @@ QUERY_BASE = """
 """
 
 QUERY_RESUMO = """
-WITH base AS (
+wITH base AS (
     SELECT 
     	dev.sale_order_store_number as pedido,
     	dev.delivery_type,
-        dev.seller_name AS nome_seller,
+        UPPER (dev.seller_name) AS nome_seller,
        CASE 
             WHEN dev.delivery_type = 'MILKRUN' THEN MIN(dev.delivery_collect_number)
             ELSE MIN(dev.delivery_number)
@@ -171,8 +181,8 @@ WITH base AS (
             ELSE MIN(dev.customer_expected_delivery_date::date)
         end), 7) 
         END AS mes_ano_definido
-    FROM 
-        showcase.c_operation_outbound_delivery AS dev
+        FROM 
+       	 showcase.c_operation_outbound_delivery AS dev
     WHERE 
         dev.delivery_type IN ('DROPSHIPPING', 'DAFITI ENVIOS', 'MILKRUN')
     GROUP BY 
@@ -181,27 +191,7 @@ WITH base AS (
         (CASE 
             WHEN dev.delivery_type IN ('DAFITI ENVIOS', 'MILKRUN') THEN MIN(dev.paid_date)
             ELSE MIN(dev.customer_expected_delivery_date::date)
-        END) >= DATEADD(MONTH, -6, DATE_TRUNC('MONTH', CURRENT_DATE))
-        
-union all 
-select
-	dev.sale_order_store_number as pedido,
-	dev.delivery_type,
-     case 
-        	when dev.delivery_type = 'RETAIL' then 'LEAP'
-        	else dev.seller_name 
-        end AS nome_seller,
-        MIN(dev.delivery_number) AS doc_dft,
-        LEFT(shipped_date::date,7) AS mes_ano_definido
-    FROM 
-        showcase.c_operation_outbound_delivery AS dev
-    WHERE 
-        dev.delivery_type IN ('FULFILLMENT', 'RETAIL')
-        and item_quantity > 0
-    GROUP BY 
-        dev.delivery_type, dev.seller_name,shipped_date,dev.delivery_type,dev.sale_order_store_number
-    HAVING 
-        shipped_date::date >= DATEADD(MONTH, -6, DATE_TRUNC('MONTH', CURRENT_DATE))
+        END) >= DATEADD(MONTH, -6, DATE_TRUNC('MONTH', CURRENT_DATE))      
 ),
 rev_inv AS (
     SELECT 
@@ -219,10 +209,10 @@ rev_inv AS (
                 WHEN delivery_type = 'FULL' THEN 'FULFILLMENT'
                 ELSE delivery_type 
             end as delivery_type,
-             case 
+            UPPER (case 
         		when delivery_type = 'RETAIL' then 'LEAP'
         		else seller_name 
-        	end AS nome_seller_rev,
+        	end) AS nome_seller_rev,
             CASE WHEN coalesce (rem_date,bench_date) IS NOT NULL THEN 1 ELSE 0 END AS devolvido,
             CASE WHEN der_date IS NOT NULL THEN 1 ELSE 0 END AS devolucao_reprovada,
             CASE 
@@ -232,6 +222,8 @@ rev_inv AS (
             END AS devolucao_em_aberto
         FROM 
             curated_data.a_operation_returns AS rev
+        where 
+             delivery_type in ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
         GROUP BY
             delivery_number, rem_date, der_date,seller_name,bench_date,delivery_type
     )

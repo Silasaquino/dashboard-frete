@@ -11,3 +11,6 @@ psycopg2-binary
 plotly
 gspread
 requests
+oauth2client 
+gspread
+google-auth
