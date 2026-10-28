@@ -30,6 +30,11 @@ CONFIG_JOBS = {
         "nome": "Vendas Outbound",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_showcase.c_operation_outbound_delivery/api/json",
         "script": "atualizar_base_vendas.py"
+    },
+    "cockpit_doca": {
+        "nome": "Cockpit Doca",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_raw_sap_ewm.dafiti_cockpit/api/json",
+        "script": "cockpit_doca.py"
     }
 }
 

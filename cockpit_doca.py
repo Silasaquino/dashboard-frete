@@ -6,13 +6,21 @@ import requests
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. CONFIGURAÇÕES DE CONEXÃO, PLANILHA E WEBHOOK
+# 1. CONFIGURAÇÕES DE CONEXÃO AO REDSHIFT (LENDO DO SECRETS.TOML)
 # ==========================================
-REDSHIFT_HOST = "gfg-dwh-prod.dafiti.io"
-REDSHIFT_PORT = "5439"
-REDSHIFT_DB = "dftdwh"
-REDSHIFT_USER = "silasaquino"
-REDSHIFT_PASSWORD = "OVpnlp09"
+try:
+    import tomllib  # Nativo no Python 3.11+
+except ImportError:
+    import tomli as tomllib
+
+with open(".streamlit/secrets.toml", "rb") as f:
+    secrets = tomllib.load(f)
+
+REDSHIFT_HOST = secrets["REDSHIFT_HOST"]
+REDSHIFT_PORT = secrets["REDSHIFT_PORT"]
+REDSHIFT_DB = secrets["REDSHIFT_DB"]
+REDSHIFT_USER = secrets["REDSHIFT_USER"]
+REDSHIFT_PASSWORD = secrets["REDSHIFT_PASSWORD"]
 
 SHEET_ID = "1Ku9ni_ht9YPwJ9DzDJghvgJsgXQbffG6misfl937Lt4"
 NOME_ABA_BASE = "Base"
@@ -408,7 +416,7 @@ def enviar_notificacao_webhook(data_atualizacao, total_linhas):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Enviando notificação via Webhook...")
     
     dt_atual = datetime.strptime(data_atualizacao, "%Y-%m-%d %H:%M:%S")
-    dt_proxima = dt_atual + timedelta(hours=1)
+    dt_proxima = dt_atual + timedelta(minutes=30)
     
     referencia_str = dt_atual.strftime("%d/%m/%Y %H:%M:%S")
     proxima_str = dt_proxima.strftime("%d/%m/%Y %H:%M:%S")
