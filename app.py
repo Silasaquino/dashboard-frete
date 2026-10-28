@@ -227,7 +227,7 @@ else:
             'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'data_finalizacao',
             'tracking', 'sub_tracking', 'grupo_aberto_seller', 'auto_postagem',
             'object_tag_number', 'status_rastreio', 'data_postagem',
-            'data_ultimo_status_correios', 'ultimo_status_correios', 'sku',
+            'data_ultimo_status_correios', 'ultimo_status_correios', 'sku', 'categoria',
             'quantidade', 'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
         ]
 
@@ -1205,8 +1205,8 @@ else:
                             plot_bgcolor='rgba(0,0,0,0)',
                             height=250,
                             margin=dict(l=20, r=20, t=30, b=20),
-                            xaxis=dict(showgrid=False, title="qtd_sva", type='category'),
-                            yaxis=dict(showgrid=True, title="", range=[0, max_y * 1.25])
+                            xaxis=dict(showgrid=False, zeroline=False, title="qtd_sva", type='category'),
+                            yaxis=dict(showgrid=False, zeroline=False, title="", range=[0, max_y * 1.25])
                         )
                         st.plotly_chart(fig_sva_c, use_container_width=True)
                     else:
@@ -1827,10 +1827,131 @@ else:
                 st.info("Sem dados de SKU registrados para o período selecionado.")
 
         st.write("")
+
+        # ----------------------------------------------------
+        # BLOCO 2: CATEGORIAS (QUANTIDADE E VALOR DE RETORNO)
+        # ----------------------------------------------------
+        col_cat_qtd, col_cat_val = st.columns(2)
+
+        with col_cat_qtd:
+            st.subheader("📦 Categorias com Maior Volume de Devolução")
+            if 'categoria' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_cat_calc = df_base_reversa_periodo.copy()
+                if 'quantidade' in df_cat_calc.columns:
+                    df_cat_calc['qtd_num'] = pd.to_numeric(
+                        df_cat_calc['quantidade'].astype(str).str.replace(',', '.'), errors='coerce'
+                    ).fillna(1)
+                else:
+                    df_cat_calc['qtd_num'] = 1
+
+                df_cat_calc['categoria_limpa'] = df_cat_calc['categoria'].fillna('NÃO INFORMADO').astype(str).str.strip()
+                df_cat_calc = df_cat_calc[df_cat_calc['categoria_limpa'] != '']
+                
+                df_top_cat = df_cat_calc.groupby('categoria_limpa', as_index=False)['qtd_num'].sum()
+                df_top_cat.rename(columns={'qtd_num': 'total_quantidade'}, inplace=True)
+
+                total_geral_cat_qtd = df_top_cat['total_quantidade'].sum()
+
+                df_top_cat = (
+                    df_top_cat
+                    .sort_values('total_quantidade', ascending=False)
+                    .head(10)
+                    .sort_values('total_quantidade', ascending=True)
+                )
+
+                df_top_cat['rotulo'] = df_top_cat['total_quantidade'].apply(
+                    lambda v: f"{int(v):,} ({(v / total_geral_cat_qtd) * 100:.1f}%)".replace(",", ".") if total_geral_cat_qtd > 0 else "0"
+                )
+
+                fig_top_cat = px.bar(
+                    df_top_cat,
+                    x='total_quantidade',
+                    y='categoria_limpa',
+                    text='rotulo',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=[cor_grafico]
+                )
+
+                max_cat_qtd = df_top_cat['total_quantidade'].max() if not df_top_cat.empty else 100
+                fig_top_cat.update_traces(textposition='outside')
+                fig_top_cat.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=120, t=30, b=20),
+                    height=400,
+                    xaxis=dict(range=[0, max_cat_qtd * 1.35], showgrid=False),
+                    yaxis=dict(showgrid=False, type='category'),
+                    xaxis_title="Quantidade Devolvida",
+                    yaxis_title="Categoria"
+                )
+                st.plotly_chart(fig_top_cat, use_container_width=True)
+            else:
+                st.info("Sem dados de categoria registrados para o período selecionado.")
+
+        with col_cat_val:
+            st.subheader("💵 Categorias com Maior Valor de Retorno (R$)")
+            if 'categoria' in df_base_reversa_periodo.columns and 'valor_retorno' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_cat_val_calc = df_base_reversa_periodo.copy()
+                serie_val = (
+                    df_cat_val_calc['valor_retorno']
+                    .astype(str)
+                    .str.replace('R$', '', regex=False)
+                    .str.replace(' ', '', regex=False)
+                    .str.replace(',', '.', regex=False)
+                )
+                df_cat_val_calc['val_num'] = pd.to_numeric(serie_val, errors='coerce').fillna(0.0)
+
+                df_cat_val_calc['categoria_limpa'] = df_cat_val_calc['categoria'].fillna('NÃO INFORMADO').astype(str).str.strip()
+                df_cat_val_calc = df_cat_val_calc[df_cat_val_calc['categoria_limpa'] != '']
+
+                df_top_cat_val = df_cat_val_calc.groupby('categoria_limpa', as_index=False)['val_num'].sum()
+                df_top_cat_val.rename(columns={'val_num': 'total_valor'}, inplace=True)
+
+                total_geral_cat_val = df_top_cat_val['total_valor'].sum()
+
+                df_top_cat_val = (
+                    df_top_cat_val
+                    .sort_values('total_valor', ascending=False)
+                    .head(10)
+                    .sort_values('total_valor', ascending=True)
+                )
+
+                df_top_cat_val['rotulo'] = df_top_cat_val['total_valor'].apply(
+                    lambda v: f"R$ {v:,.2f} ({(v / total_geral_cat_val) * 100:.1f}%)".replace(",", "X").replace(".", ",").replace("X", ".") if total_geral_cat_val > 0 else "R$ 0,00"
+                )
+
+                fig_top_cat_val = px.bar(
+                    df_top_cat_val,
+                    x='total_valor',
+                    y='categoria_limpa',
+                    text='rotulo',
+                    orientation='h',
+                    template=template_plotly,
+                    color_discrete_sequence=['#10B981']
+                )
+
+                max_cat_val = df_top_cat_val['total_valor'].max() if not df_top_cat_val.empty else 100.0
+                fig_top_cat_val.update_traces(textposition='outside')
+                fig_top_cat_val.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=140, t=30, b=20),
+                    height=400,
+                    xaxis=dict(range=[0, max_cat_val * 1.35], showgrid=False),
+                    yaxis=dict(showgrid=False, type='category'),
+                    xaxis_title="Valor de Retorno (R$)",
+                    yaxis_title="Categoria"
+                )
+                st.plotly_chart(fig_top_cat_val, use_container_width=True)
+            else:
+                st.info("Sem dados de valor de retorno ou categoria registrados.")
+
+        st.write("")
         st.write("---")
 
         # ----------------------------------------------------
-        # BLOCO 2: PACOTES COM O SELLER (EM SEGUIDA DOS DOIS)
+        # BLOCO 3: PACOTES COM O SELLER
         # ----------------------------------------------------
         st.subheader("📦 Sellers - Dias com Pacote Entregue sem Finalizar")
         if 'tracking' in df_base_reversa_periodo.columns and 'grupo_aberto_seller' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:

@@ -6,13 +6,21 @@ import gspread
 from datetime import datetime
 
 # ==========================================
-# 1. CONFIGURAÇÕES DE CONEXÃO AO REDSHIFT
+# 1. CONFIGURAÇÕES DE CONEXÃO AO REDSHIFT (LENDO DO SECRETS.TOML)
 # ==========================================
-REDSHIFT_HOST = "gfg-dwh-prod.dafiti.io"
-REDSHIFT_PORT = "5439"
-REDSHIFT_DB = "dftdwh"
-REDSHIFT_USER = "silasaquino"
-REDSHIFT_PASSWORD = "OVpnlp09"
+try:
+    import tomllib  # Nativo no Python 3.11+
+except ImportError:
+    import tomli as tomllib
+
+with open(".streamlit/secrets.toml", "rb") as f:
+    secrets = tomllib.load(f)
+
+REDSHIFT_HOST = secrets["REDSHIFT_HOST"]
+REDSHIFT_PORT = secrets["REDSHIFT_PORT"]
+REDSHIFT_DB = secrets["REDSHIFT_DB"]
+REDSHIFT_USER = secrets["REDSHIFT_USER"]
+REDSHIFT_PASSWORD = secrets["REDSHIFT_PASSWORD"]
 
 # ==========================================
 # 2. CONFIGURAÇÃO DAS PLANILHAS DO GOOGLE SHEETS
@@ -32,14 +40,14 @@ PLANILHAS_BASE = [
 LIMIT_LINHAS_POR_SHEET = 300000
 
 # ==========================================
-# 3. CONSULTAS SQL ORIGINAIS
+# 3. CONSULTAS SQL
 # ==========================================
 QUERY_BASE = """
     SELECT 
         data_solicitacao,
         mes_ano_solicitacao,
         tipo_solicitacao,
-        seller_name,
+        UPPER (seller_name) as seller_name,
         tipo_processo,
         ultima_atualizacao_tabela,
         pedido,
@@ -53,6 +61,7 @@ QUERY_BASE = """
         ultimo_status_correios,
         protocolo,
         sku,
+        categoria,
         quantidade,
         valor_retorno,
         data_rem,
@@ -95,6 +104,7 @@ QUERY_BASE = """
             object_status_description AS ultimo_status_correios,
             protocol AS protocolo,
             product_code_store AS sku,
+            UPPER (conf.attribute_set) AS categoria,
             SUM(original_item_quantity_order) AS quantidade,
             SUM(reverse_amount) AS valor_retorno,
             rem_date AS data_rem,
@@ -104,7 +114,7 @@ QUERY_BASE = """
             CASE
                 WHEN rem_date IS NOT NULL THEN 'FINALIZADO'
                 WHEN der_date IS NOT NULL THEN 'FINALIZADO'
-                when src_status = 'return_rejected' THEN 'FINALIZADO'
+                WHEN src_status = 'return_rejected' THEN 'FINALIZADO'
                 WHEN status_date_loss IS NOT NULL THEN 'FINALIZADO'
                 WHEN object_status_description = 'Entregue' THEN 'ENTREGUE AO SELLER'
                 WHEN history_status_description = 'Coletado' THEN 'POSTADO/TRANSPORTADOR'
@@ -115,17 +125,17 @@ QUERY_BASE = """
             CASE
                 WHEN rem_date IS NOT NULL THEN 'ENTRADA NO SELLER' 
                 WHEN der_date IS NOT NULL THEN 'RECUSA SELLER'
-                when src_status = 'return_rejected' THEN 'RECUSA SELLER'
+                WHEN src_status = 'return_rejected' THEN 'RECUSA SELLER'
                 WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
                 WHEN history_status_description = 'Prazo de Utilização Expirado' THEN 'REVERSAS EXPIRADAS'
-                else null
-                END AS sub_tracking,
+                ELSE NULL
+            END AS sub_tracking,
             CASE
                 WHEN (
                     CASE
                         WHEN rem_date IS NOT NULL THEN 'FINALIZADO'
                         WHEN der_date IS NOT NULL THEN 'FINALIZADO'
-                        when src_status = 'return_rejected' THEN 'FINALIZADO'
+                        WHEN src_status = 'return_rejected' THEN 'FINALIZADO'
                         WHEN status_date_loss IS NOT NULL THEN 'EXTRAVIO'
                         WHEN object_status_description = 'Entregue' THEN 'ENTREGUE AO SELLER'
                         WHEN history_status_description = 'Coletado' THEN 'POSTADO/TRANSPORTADOR'
@@ -136,10 +146,14 @@ QUERY_BASE = """
                 THEN DATEDIFF(day, object_update_date::date, CURRENT_DATE)
                 ELSE NULL
             END AS dias_aberto_seller
-        FROM curated_data.a_operation_returns
+        FROM 
+            curated_data.a_operation_returns AS rev
+        LEFT JOIN 
+            business_layer.dim_product_config AS conf 
+            ON rev.sku_config = conf.sku_config
         WHERE 
-          return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
-           and delivery_type in ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
+            return_order_date >= DATEADD(month, -6, DATE_TRUNC('month', GETDATE()))
+            AND delivery_type IN ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
         GROUP BY 
             return_order_date,
             type_request_king,
@@ -160,33 +174,34 @@ QUERY_BASE = """
             rem_date,
             der_date,
             status_date_loss,
-            src_status
+            src_status,
+            conf.attribute_set
     ) sub
 """
 
 QUERY_RESUMO = """
-wITH base AS (
+WITH base AS (
     SELECT 
-    	dev.sale_order_store_number as pedido,
-    	dev.delivery_type,
+        dev.sale_order_store_number as pedido,
+        dev.delivery_type,
         UPPER (dev.seller_name) AS nome_seller,
-       CASE 
+        CASE 
             WHEN dev.delivery_type = 'MILKRUN' THEN MIN(dev.delivery_collect_number)
             ELSE MIN(dev.delivery_number)
         END AS doc_dft,
         CASE 
             WHEN dev.delivery_type IN ('DAFITI ENVIOS', 'MILKRUN') THEN LEFT(min (dev.paid_date::date), 7)
             ELSE LEFT((CASE 
-            WHEN dev.delivery_type = 'MILKRUN' THEN MIN(dev.milkrun_expected_delivery_warehouse_date::date)
-            ELSE MIN(dev.customer_expected_delivery_date::date)
-        end), 7) 
+                WHEN dev.delivery_type = 'MILKRUN' THEN MIN(dev.milkrun_expected_delivery_warehouse_date::date)
+                ELSE MIN(dev.customer_expected_delivery_date::date)
+            END), 7) 
         END AS mes_ano_definido
-        FROM 
-       	 showcase.c_operation_outbound_delivery AS dev
+    FROM 
+        showcase.c_operation_outbound_delivery AS dev
     WHERE 
         dev.delivery_type IN ('DROPSHIPPING', 'DAFITI ENVIOS', 'MILKRUN')
     GROUP BY 
-        dev.delivery_type, dev.seller_name, dev.paid_date,dev.delivery_type,dev.sale_order_store_number
+        dev.delivery_type, dev.seller_name, dev.paid_date, dev.delivery_type, dev.sale_order_store_number
     HAVING 
         (CASE 
             WHEN dev.delivery_type IN ('DAFITI ENVIOS', 'MILKRUN') THEN MIN(dev.paid_date)
@@ -197,7 +212,7 @@ rev_inv AS (
     SELECT 
         delivery_number,
         delivery_type as tipo_item,
-        nome_seller_rev,
+        UPPER (nome_seller_rev) as nome_seller_rev,
         MAX(devolvido) AS devolvido,
         MAX(devolucao_reprovada) AS devolucao_reprovada,
         MAX(devolucao_em_aberto) AS devolucao_em_aberto
@@ -208,11 +223,11 @@ rev_inv AS (
                 WHEN delivery_type = 'DAFITI_ENVIOS' THEN 'DAFITI ENVIOS'
                 WHEN delivery_type = 'FULL' THEN 'FULFILLMENT'
                 ELSE delivery_type 
-            end as delivery_type,
-            UPPER (case 
-        		when delivery_type = 'RETAIL' then 'LEAP'
-        		else seller_name 
-        	end) AS nome_seller_rev,
+            END AS delivery_type,
+            UPPER (CASE 
+                WHEN delivery_type = 'RETAIL' THEN 'LEAP'
+                ELSE seller_name 
+            END) AS nome_seller_rev,
             CASE WHEN coalesce (rem_date,bench_date) IS NOT NULL THEN 1 ELSE 0 END AS devolvido,
             CASE WHEN der_date IS NOT NULL THEN 1 ELSE 0 END AS devolucao_reprovada,
             CASE 
@@ -222,13 +237,13 @@ rev_inv AS (
             END AS devolucao_em_aberto
         FROM 
             curated_data.a_operation_returns AS rev
-        where 
-             delivery_type in ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
+        WHERE 
+            delivery_type in ('DROPSHIPPING','DAFITI_ENVIOS','MILKRUN')
         GROUP BY
-            delivery_number, rem_date, der_date,seller_name,bench_date,delivery_type
+            delivery_number, rem_date, der_date, seller_name, bench_date, delivery_type
     )
     GROUP BY 
-        delivery_number,nome_seller_rev,delivery_type
+        delivery_number, nome_seller_rev, delivery_type
 )
 SELECT 
     nome_seller,
@@ -261,7 +276,7 @@ def atualizar_aba_google_sheets(sh, nome_aba, df, tamanho_lote=10000):
         worksheet = sh.worksheet(nome_aba)
     except gspread.WorksheetNotFound:
         print(f"[{datetime.now()}] ⚠️ Aba '{nome_aba}' não encontrada. A criar nova aba...")
-        worksheet = sh.add_worksheet(title=nome_aba, rows=1000, cols=26)
+        worksheet = sh.add_worksheet(title=nome_aba, rows=1000, cols=30)
 
     print(f"[{datetime.now()}] 🧹 A limpar a aba '{nome_aba}'...")
     worksheet.clear()
@@ -351,7 +366,6 @@ def executar_automacao():
                 atualizar_aba_google_sheets(sh_lote, NOME_ABA_BASE, df_lote)
                 print(f"[{datetime.now()}] ✅ Lote {idx + 1} gravado com sucesso!")
             else:
-                # Se houver menos linhas que a capacidade total, limpa as planilhas sobressalentes
                 print(f"[{datetime.now()}] 🧹 A limpar planilha sobressalente ID: {sheet_id}...")
                 try:
                     ws = sh_lote.worksheet(NOME_ABA_BASE)
