@@ -267,7 +267,7 @@ else:
             return pd.DataFrame()
 
     # ==========================================
-    # CARREGAMENTO DO MÓDULO DE VENDAS
+    # CARREGAMENTO DO MÓDULO DE VENDAS E ENTREGAS
     # ==========================================
     SHEET_VENDAS_PRINCIPAL = "13R19Vg06Z-E10wKdDl7gqtdKM7KdNeI7unutsVZXrNY"
     PLANILHAS_VENDAS_BASE = [
@@ -316,6 +316,27 @@ else:
             return df_final
         return pd.DataFrame()
 
+    @st.cache_data(ttl=1800, show_spinner=False)
+    def carregar_base_entregas():
+        lista_dfs = []
+        for item in PLANILHAS_VENDAS_BASE:
+            sheet_id = item["id"]
+            df_temp = pd.DataFrame()
+            try:
+                url_gviz = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=ENTREGAS"
+                df_temp = pd.read_csv(url_gviz, low_memory=False)
+            except Exception:
+                pass
+            if not df_temp.empty and len(df_temp.columns) > 1:
+                lista_dfs.append(df_temp)
+
+        if lista_dfs:
+            df_final = pd.concat(lista_dfs, ignore_index=True)
+            if 'nome_seller' in df_final.columns:
+                df_final['nome_seller'] = df_final['nome_seller'].fillna('N/A').astype(str)
+            return df_final
+        return pd.DataFrame()
+
     with st.spinner("⚡ A carregar base operacional na memória..."):
         df_raw_reversa = carregar_dados_reversa_consolidados()
         df_raw_resumo = carregar_dados_resumo()
@@ -330,6 +351,7 @@ else:
         df_res_tracking = carregar_aba_vendas_resumo("RESUMO_TRACKING")
         df_res_status_loja = carregar_aba_vendas_resumo("RESUMO_STATUS_LOJA")
         df_raw_vendas_base = carregar_base_vendas()
+        df_raw_entregas = carregar_base_entregas()
 
     # ==========================================
     # SELEÇÃO SUPERIOR UNIFICADA (SELLER, MODAL E TEMA)
@@ -696,6 +718,7 @@ else:
         f_tracking = filtrar_vendas(df_res_tracking)
         f_status_loja = filtrar_vendas(df_res_status_loja)
         f_base_vendas = filtrar_vendas(df_raw_vendas_base)
+        f_base_entregas = filtrar_vendas(df_raw_entregas)
 
         data_hora_vendas = "N/D"
         if 'ultima_atualizacao_tabela' in df_raw_vendas_base.columns and not df_raw_vendas_base.empty:
@@ -977,7 +1000,94 @@ else:
 
         st.write("---")
 
-        # 6. FLUXO DE RECOLHA (RENDERIZADO EXCLUSIVAMENTE SE FOR MILKRUN)
+        # ----------------------------------------------------
+        # 6. LINHA DO TEMPO DE VENCIMENTOS (ENTREGAS)
+        # ----------------------------------------------------
+        if not f_base_entregas.empty and 'grupo_dias' in f_base_entregas.columns:
+            st.markdown("""
+                <div style='margin-bottom: 12px;'>
+                    <h3 style='margin-bottom: 4px; font-weight: 800;'>Linha do tempo de vencimentos</h3>
+                    <p style='color: #94A3B8; font-size: 13.5px; margin: 0 0 16px 0;'>Pedidos em aberto pelo dia útil da data limite de expedição: o que já venceu, o que vence hoje e o que vem aí.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            df_ent_calc = f_base_entregas.copy()
+            col_qtd_ent = 'qtd' if 'qtd' in df_ent_calc.columns else 'quantidade'
+            if col_qtd_ent in df_ent_calc.columns:
+                df_ent_calc['qtd_num'] = pd.to_numeric(df_ent_calc[col_qtd_ent].astype(str).str.replace(',', '.'), errors='coerce').fillna(1)
+            else:
+                df_ent_calc['qtd_num'] = 1
+
+            df_venc = df_ent_calc.groupby('grupo_dias', as_index=False)['qtd_num'].sum()
+            df_venc.rename(columns={'qtd_num': 'total_qtd'}, inplace=True)
+
+            ordem_vencimentos = [
+                'Atraso 5+ dias',
+                'Atraso 4 dias',
+                'Atraso 3 dias',
+                'Atraso 2 dias',
+                'Atraso 1 dia',
+                'Vence hoje',
+                'Vence Amanhã',
+                'Vence em 2 dias',
+                'Vence em 3 dias',
+                'Vence em 4 dias',
+                'Vence em 5 dias',
+                'Vence 5+ dias'
+            ]
+
+            def classificar_status_vencimento(g):
+                g_str = str(g).lower()
+                if 'atraso' in g_str:
+                    return 'Atrasado'
+                elif 'vence hoje' in g_str:
+                    return 'Vence hoje'
+                else:
+                    return 'A vencer'
+
+            df_venc['status_classe'] = df_venc['grupo_dias'].apply(classificar_status_vencimento)
+            df_venc['ordem_idx'] = df_venc['grupo_dias'].apply(lambda g: ordem_vencimentos.index(g) if g in ordem_vencimentos else 99)
+            df_venc = df_venc.sort_values('ordem_idx')
+
+            mapa_cores_venc = {
+                'Atrasado': '#E06A6A',
+                'Vence hoje': '#E59E0B',
+                'A vencer': '#555555'
+            }
+
+            df_venc['cor'] = df_venc['status_classe'].map(mapa_cores_venc)
+            df_venc['total_qtd_fmt'] = df_venc['total_qtd'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+            fig_venc = go.Figure()
+            for status_cat, cor_cat in mapa_cores_venc.items():
+                df_sub_cat = df_venc[df_venc['status_classe'] == status_cat]
+                if not df_sub_cat.empty:
+                    fig_venc.add_trace(go.Bar(
+                        x=df_sub_cat['grupo_dias'],
+                        y=df_sub_cat['total_qtd'],
+                        name=status_cat,
+                        text=df_sub_cat['total_qtd_fmt'],
+                        textposition='outside',
+                        marker_color=cor_cat,
+                        marker_line=dict(width=1, color='#1E293B')
+                    ))
+
+            max_y_venc = df_venc['total_qtd'].max() if not df_venc.empty else 100
+
+            fig_venc.update_layout(
+                template=template_plotly,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=350,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                margin=dict(l=20, r=20, t=40, b=30),
+                xaxis=dict(showgrid=False, type='category', title=""),
+                yaxis=dict(showgrid=False, showticklabels=False, range=[0, max_y_venc * 1.25])
+            )
+            st.plotly_chart(fig_venc, use_container_width=True)
+            st.write("---")
+
+        # 7. FLUXO DE RECOLHA (RENDERIZADO EXCLUSIVAMENTE SE FOR MILKRUN)
         if "MILKRUN" in modal_selecionado.upper():
             st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Fluxo de Recolha (Milkrun)</h3>", unsafe_allow_html=True)
             t_ab, t_col, t_tr, t_leap = 0, 0, 0, 0
@@ -1106,7 +1216,7 @@ else:
 
             st.write("---")
 
-        # 7. IMPACTO DE CANCELAMENTOS E PREJUDICADO
+        # 8. IMPACTO DE CANCELAMENTOS E PREJUDICADO
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
         c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
 
@@ -1167,27 +1277,40 @@ else:
 
         st.write("---")
 
-        # 8. MEMORIAL DE CÁLCULO - VENDAS
+        # 9. MEMORIAL DE CÁLCULO - VENDAS
         st.markdown("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13px; color: #94A3B8; line-height: 1.8;'>
                 <h4 style='color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 0 0 12px 0;'>📊 Memorial de Cálculo - Operação</h4>
                 <p style='margin: 4px 0;'>• <b>Virada de Mês:</b> Até o dia 04 são considerados os dados consolidados do mês anterior. A partir do dia 05, passam a vigorar os dados do mês corrente.</p>
                 <p style='margin: 4px 0;'>• <b>Qualidade:</b> SLA Expedição (Postagem no prazo) | CAF (Cancelamentos vs Vendas) | Devolução (Retornos vs Expedido) | SAC (Contatos de entrega).</p>
                 <p style='margin: 4px 0;'>• <b>Backlog:</b> Pedidos sem expedição. Atraso = (Hoje) − (Data Limite de Expedição).</p>
+                <p style='margin: 4px 0;'>• <b>Linha do tempo de vencimentos:</b> Dias até o vencimento da entrega (Entregas em Aberto).</p>
                 <p style='margin: 4px 0;'>• <b>Financeiro:</b> Valor dos itens cancelados e coletas falhas.</p>
             </div>
         """, unsafe_allow_html=True)
 
         st.write("")
 
-        col_bot_v1, col_bot_v2, col_bot_v3 = st.columns([1, 2, 1])
-        with col_bot_v2:
+        # 10. DOWNLOAD CSV VENDAS E ENTREGAS
+        col_bot_v1, col_bot_v2 = st.columns(2)
+        with col_bot_v1:
             dados_csv_vendas = converter_df_para_csv(f_base_vendas)
             nome_arquivo_vendas = f"pedidos_aberto_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
             st.download_button(
                 label="📥 Descarregar Pedidos em Aberto (.csv)",
                 data=dados_csv_vendas,
                 file_name=nome_arquivo_vendas,
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        with col_bot_v2:
+            dados_csv_entregas = converter_df_para_csv(f_base_entregas)
+            nome_arquivo_entregas = f"entregas_aberto_{empresa_usuario.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+            st.download_button(
+                label="📥 Descarregar Entregas em Aberto (.csv)",
+                data=dados_csv_entregas,
+                file_name=nome_arquivo_entregas,
                 mime="text/csv",
                 use_container_width=True
             )

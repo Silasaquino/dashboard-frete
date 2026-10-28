@@ -6,13 +6,21 @@ import gspread
 from datetime import datetime
 
 # ==========================================
-# 1. CONFIGURAÇÕES DE CONEXÃO AO REDSHIFT
+# 1. CONFIGURAÇÕES DE CONEXÃO AO REDSHIFT (LENDO DO SECRETS.TOML)
 # ==========================================
-REDSHIFT_HOST = "gfg-dwh-prod.dafiti.io"
-REDSHIFT_PORT = "5439"
-REDSHIFT_DB = "dftdwh"
-REDSHIFT_USER = "silasaquino"
-REDSHIFT_PASSWORD = "OVpnlp09"
+try:
+    import tomllib  # Nativo no Python 3.11+
+except ImportError:
+    import tomli as tomllib
+
+with open(".streamlit/secrets.toml", "rb") as f:
+    secrets = tomllib.load(f)
+
+REDSHIFT_HOST = secrets["REDSHIFT_HOST"]
+REDSHIFT_PORT = secrets["REDSHIFT_PORT"]
+REDSHIFT_DB = secrets["REDSHIFT_DB"]
+REDSHIFT_USER = secrets["REDSHIFT_USER"]
+REDSHIFT_PASSWORD = secrets["REDSHIFT_PASSWORD"]
 
 # ==========================================
 # 2. CONFIGURAÇÃO DAS PLANILHAS DO GOOGLE SHEETS
@@ -30,9 +38,11 @@ NOME_ABA_RESUMO_STATUS_LOJA = "RESUMO_STATUS_LOJA"
 NOME_ABA_RESUMO_RCC = "RESUMO_RCC"
 NOME_ABA_RESUMO_CAN = "RESUMO_CAN"
 
-# Planilhas Externas Dedicadas (Exclusivas para a BASE detalhada particionada)
+# Planilhas Externas Dedicadas (Para as abas BASE e ENTREGAS particionadas)
 NOME_ABA_BASE = "BASE"
-PLANILHAS_BASE = [
+NOME_ABA_ENTREGAS = "ENTREGAS"
+
+PLANILHAS_DADOS_EXTERNAS = [
     {"id": "1VarO61GI5asiRDlaw81Dztx4rRINySnk1KgsBCzPgkI", "gid": "0"},          # Parte 1 (Lote 1: até 300k)
     {"id": "1Cl9MSMrVaMci_mJ-u62NFnc2NWanl-86M8PJI-2bWyU", "gid": "0"},          # Parte 2 (Lote 2: até 600k)
     {"id": "1jGZv0ATiJvCOfmsODT3JPGkpdA18XkmlP60WH_uUCK8", "gid": "0"},          # Parte 3 (Lote 3: até 900k)
@@ -52,7 +62,7 @@ select
 		when dev.delivery_type = 'MILKRUN' then min (dev.milkrun_expected_delivery_warehouse_date::date)
 		else min (dev.customer_expected_delivery_date::date)
 	end as promessa_cliente,
-	dev.seller_name as nome_seller,
+	UPPER(TRIM(dev.seller_name)) as nome_seller,
 	dev.sale_order_store_number,
 	case 
 		when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -135,7 +145,7 @@ group by
 ,
 Ultimo_ponto as (select 
 dev.delivery_type,
-dev.seller_name as nome_seller,
+UPPER(TRIM(dev.seller_name)) as nome_seller,
 b.doc_dft as dft,
 count (distinct case 
 		when dev.delivery_type = 'MILKRUN' then dev.milkrun_last_status  
@@ -150,17 +160,17 @@ from
 	base as b
 left join
 	showcase.c_operation_outbound_delivery  as dev
-	on dev.delivery_type = b.delivery_type and dev.seller_name = b.nome_seller and 	(case 
+	on dev.delivery_type = b.delivery_type and UPPER(TRIM(dev.seller_name)) = b.nome_seller and 	(case 
 		when dev.delivery_type = 'MILKRUN' then dev.delivery_collect_number
 		else dev.delivery_number
 	end) = b.doc_dft
 left join 
 	showcase.c_operation_outbound_delivery  as dev1
-	on b.delivery_type = dev1.delivery_type and  b.nome_seller = dev1.seller_name and b.doc_dft = dev1.delivery_collect_number
+	on b.delivery_type = dev1.delivery_type and  b.nome_seller = UPPER(TRIM(dev1.seller_name)) and b.doc_dft = dev1.delivery_collect_number
 	and dev1.delivery_type in ('MILKRUN') and dev1.milkrun_last_status_date is not null
 left join 
 	showcase.c_operation_outbound_delivery  as dev2
-	on b.delivery_type = dev2.delivery_type and  b.nome_seller = dev2.seller_name and b.doc_dft = dev2.delivery_number
+	on b.delivery_type = dev2.delivery_type and  b.nome_seller = UPPER(TRIM(dev2.seller_name)) and b.doc_dft = dev2.delivery_number
 	and dev2.delivery_type in ('DROPSHIPPING','DAFITI ENVIOS')
 where 
 	dev.delivery_type in ('DROPSHIPPING','DAFITI ENVIOS','MILKRUN')
@@ -275,7 +285,7 @@ select
 		else min (dev.customer_expected_delivery_date::date)
 	end as promessa_cliente,
 	left (promessa_cliente,7) as mes_ano_prom_cliente,
-	dev.seller_name as nome_seller,
+	UPPER(TRIM(dev.seller_name)) as nome_seller,
 	dev.sale_order_store_number,
 	case 
 		when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -369,7 +379,7 @@ SELECT
     END AS taxa_cancelamento
 FROM (
     SELECT 
-        dev.seller_name AS nome_seller,
+        UPPER(TRIM(dev.seller_name)) AS nome_seller,
         LEFT(dev.sale_order_store_date::date, 7) AS mes_ano_compra,
         dev.delivery_type,
         COALESCE(dev.original_item_quantity, 1) AS qtds,
@@ -397,7 +407,7 @@ select
 		else min (dev.customer_expected_delivery_date::date)
 	end as promessa_cliente,
 	left (promessa_cliente,7) as mes_ano_prom_cliente,
-	dev.seller_name as nome_seller,
+	UPPER(TRIM(dev.seller_name)) as nome_seller,
 	dev.sale_order_store_number,
 	case 
 		when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -477,6 +487,142 @@ group by
 	1,2,3
 """
 
+QUERY_ENTREGAS = """
+with base as (
+select 
+	min (dev.customer_expected_delivery_date::date) as promessa_cliente,
+	UPPER(TRIM(dev.seller_name)) as nome_seller,
+	dev.sale_order_store_number,
+	min (dev.delivery_number) as doc_dft,
+	dev.sale_order_store_date::date as data_compra,
+	min (dev.delivered_date::date) as data_entrega,
+	min (dev.shipping_expected_date::date ) as data_limite_de_expedicao,
+	min (dev.shipped_date::date) as data_expedicao_coleta,
+	dev.delivery_type,
+	dev.paid_date::date as data_pagamento,
+	left (promessa_cliente,7) as mes_ano_definido,
+	dev.delivery_carrier_name
+from 
+	showcase.c_operation_outbound_delivery  as dev
+where 
+	dev.delivery_type in ('DROPSHIPPING')
+	and dev.shipped_date is not null
+group by 
+	dev.delivery_type,dev.seller_name,dev.sale_order_store_number,dev.sale_order_store_date,dev.paid_date,dev.delivery_carrier_name
+ having
+ 	MIN(dev.customer_expected_delivery_date::date) >= DATEADD(MONTH, -6, DATE_TRUNC('MONTH', CURRENT_DATE))
+)
+,
+Ultimo_ponto as (select 
+dev.delivery_type,
+UPPER(TRIM(dev.seller_name)) as nome_seller,
+b.doc_dft as dft,
+count (distinct case 
+		when dev.delivery_type = 'MILKRUN' then dev.milkrun_last_status  
+		else dev.last_status_code
+	end) as qtd_pontos,
+first_value(dev1.milkrun_last_status) OVER (PARTITION BY dev1.delivery_type,dev1.seller_name,dev1.delivery_collect_number ORDER BY dev1.milkrun_last_status_date desc rows between unbounded preceding and unbounded following) as ultimo_ponto_coleta,
+first_value(dev2.last_status_code) OVER (PARTITION BY dev2.delivery_type,dev2.seller_name,dev2.delivery_number ORDER BY dev2.last_status_date desc rows between unbounded preceding and unbounded following) as ultimo_ponto_mkt,
+count (distinct dev.is_canceled) as qtd_cancelada,
+max (dev.is_canceled) as is_canceled
+
+from 
+	base as b
+left join
+	showcase.c_operation_outbound_delivery  as dev
+	on dev.delivery_type = b.delivery_type and UPPER(TRIM(dev.seller_name)) = b.nome_seller and 	(case 
+		when dev.delivery_type = 'MILKRUN' then dev.delivery_collect_number
+		else dev.delivery_number
+	end) = b.doc_dft
+left join 
+	showcase.c_operation_outbound_delivery  as dev1
+	on b.delivery_type = dev1.delivery_type and  b.nome_seller = UPPER(TRIM(dev1.seller_name)) and b.doc_dft = dev1.delivery_collect_number
+	and dev1.delivery_type in ('MILKRUN') and dev1.milkrun_last_status_date is not null
+left join 
+	showcase.c_operation_outbound_delivery  as dev2
+	on b.delivery_type = dev2.delivery_type and  b.nome_seller = UPPER(TRIM(dev2.seller_name)) and b.doc_dft = dev2.delivery_number
+	and dev2.delivery_type in ('DROPSHIPPING','DAFITI ENVIOS')
+where 
+	dev.delivery_type in ('DROPSHIPPING')
+	and dev.shipped_date is not null
+	group by dev.delivery_type,dev.seller_name,b.doc_dft,dev1.milkrun_last_status,dev1.delivery_type,dev1.seller_name,dev1.delivery_collect_number,dev1.milkrun_last_status_date,
+	dev2.last_status_code,dev2.delivery_type,dev2.seller_name,dev2.delivery_number,dev2.last_status_date
+)
+
+select 
+*
+from (
+select 
+	b.delivery_type,
+	data_pagamento,
+	mes_ano_definido,
+	b.promessa_cliente,
+	left (b.promessa_cliente,7) as mes_ano_prom_cliente,
+	b.nome_seller,
+	b.sale_order_store_number,
+	b.doc_dft,
+	b.data_compra,
+	b.data_limite_de_expedicao,
+	left (b.data_limite_de_expedicao,7) as mes_ano_dl,
+	b.data_expedicao_coleta,
+	left (b.data_expedicao_coleta,7) as mes_ano_exp,
+	b.data_entrega,
+	left (b.data_entrega,7) as mes_ano_entrega,
+	ultimo_ponto_mkt as ultimo_ponto,
+	case 
+		when qtd_pontos = 1 and ultimo_ponto = 'TNA' then 'TRANSPORTADOR NÃO ATRIBUIDO' 
+		when qtd_pontos = 1 and ultimo_ponto in ('CAN','CAA','SOC') and data_entrega is null then 'CANCELAMENTO_SAC_CLIENTE'
+		when qtd_pontos = 1 and ultimo_ponto = 'AOT' and data_entrega is null then 'ITEM_CANCELAMENTO_EXTRAVIO'
+		when qtd_pontos = 1 and ultimo_ponto = 'RCC' and data_entrega is null then 'ITEM_CANCELAMENTO_COLETA'
+		when qtd_pontos = 1 and ultimo_ponto = 'CAF' and data_entrega is null then 'ITEM_CANCELAMENTO_SELLER'
+		when qtd_pontos = 1 and ultimo_ponto in ('REM','RIE','DEV') and data_entrega is null then 'DEVOLVIDO_SELLER'
+		when qtd_pontos = 1 and ultimo_ponto in ('POS') and data_entrega is null then 'DEVOLUÇÃO_EM_ABERTO'
+		when qtd_pontos = 1 and ultimo_ponto in ('PEP','AVA','TEX','EXC','ROU','TRO','TAV') and data_entrega is null then 'EXTRAVIOS'
+		when qtd_cancelada = 1 and u.is_canceled = 1 and data_entrega is null then 'CANCELAMENTO_SAC_CLIENTE' 
+		when data_entrega is not null and promessa_cliente >= data_entrega then 'ENTREGAS_PRAZO'
+		when data_entrega is not null and promessa_cliente < data_entrega then 'ENTREGAS_ATRASO'
+		else 'EM_ABERTO_ENTREGA'
+	end as status_pedido,
+	coalesce(b.promessa_cliente::date - CURRENT_DATE, 0) as dias_em_atraso_ent,
+	case 
+		when dias_em_atraso_ent = 0 then 'Vence hoje'
+		when dias_em_atraso_ent = 1 then 'Atraso 1 dia'
+		when dias_em_atraso_ent = 2 then 'Atraso 2 dias'
+		when dias_em_atraso_ent = 3 then 'Atraso 3 dias'
+		when dias_em_atraso_ent = 4 then 'Atraso 4 dias'
+		when dias_em_atraso_ent = 5 then 'Vence em 5 dias'
+		when dias_em_atraso_ent >= 6 then 'Atraso 5+ dias'
+		when dias_em_atraso_ent = -1 then 'Vence Amanhã'
+		when dias_em_atraso_ent = -2 then 'Vence em 2 dias'
+		when dias_em_atraso_ent = -3 then 'Vence em 3 dias'
+		when dias_em_atraso_ent = -4 then 'Vence em 4 dias'
+		when dias_em_atraso_ent = -5 then 'Vence em 5 dias'
+		when dias_em_atraso_ent <= -6 then 'Vence 5+ dias'
+		else 'Validar'
+	end as grupo_dias,	
+	count (b.doc_dft) over (partitiON by  b.sale_order_store_number,b.nome_seller,b.delivery_type) as qtd,
+	case 
+		when data_expedicao_coleta is null then 'SEM_EXPEDIÇAO'
+		when data_expedicao_coleta::date <= data_limite_de_expedicao::date then 'EXPEDIÇÃO_NO_PRAZO'
+		when data_expedicao_coleta::date > data_limite_de_expedicao::date then 'EXPEDIÇÃO_FORA_PRAZO'
+	end as status_expedicao,
+	case 
+		when data_entrega is null then 'SEM_ENTREGA'
+		when data_entrega::date <= promessa_cliente::date then 'ENTREGA_NO_PRAZO'
+		when data_entrega::date > promessa_cliente::date  then 'ENTREGA_FORA_PRAZO'
+	end as status_entrega
+from 
+	base as b
+left join 
+	Ultimo_ponto as u
+	on b.doc_dft = u.dft and b.nome_seller = u.nome_seller and b.delivery_type = u.delivery_type
+group by 
+	b.promessa_cliente,b.nome_seller,b.sale_order_store_number,b.doc_dft,b.data_compra,b.data_limite_de_expedicao,b.data_expedicao_coleta,data_pagamento,
+	mes_ano_definido,b.data_entrega,b.delivery_type,ultimo_ponto_mkt,u.qtd_pontos,qtd_cancelada,u.is_canceled
+	)
+where status_pedido like 'EM_ABERTO_ENTREGA'
+"""
+
 QUERY_RESUMO_PREJUDICADO = """
 with base as (
 select 
@@ -485,7 +631,7 @@ select
 		else min (dev.customer_expected_delivery_date::date)
 	end as promessa_cliente,
 	left (promessa_cliente,7) as mes_ano_prom_cliente,
-	dev.seller_name as nome_seller,
+	UPPER(TRIM(dev.seller_name)) as nome_seller,
 	dev.sale_order_store_number,
 	case 
 		when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -571,7 +717,7 @@ select
         else min (dev.customer_expected_delivery_date::date)
     end as promessa_cliente,
     left (promessa_cliente,7) as mes_ano_prom_cliente,
-    dev.seller_name as nome_seller,
+    UPPER(TRIM(dev.seller_name)) as nome_seller,
     dev.sale_order_store_number,
     case 
         when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -643,7 +789,7 @@ select
         when dev.delivery_type = 'MILKRUN' then min (dev.milkrun_expected_delivery_warehouse_date::date)
         else min (dev.customer_expected_delivery_date::date)
     end as promessa_cliente,
-    dev.seller_name as nome_seller,
+    UPPER(TRIM(dev.seller_name)) as nome_seller,
     dev.sale_order_store_number,
     case 
         when dev.delivery_type = 'MILKRUN' then min (dev.delivery_collect_number)
@@ -727,7 +873,7 @@ group by
 Ultimo_ponto as (
 select 
 dev.delivery_type,
-dev.seller_name as nome_seller,
+UPPER(TRIM(dev.seller_name)) as nome_seller,
 b.doc_dft as dft,
 count (distinct case 
 		when dev.delivery_type = 'MILKRUN' then dev.milkrun_last_status  
@@ -742,17 +888,17 @@ from
 	base as b
 left join
 	showcase.c_operation_outbound_delivery  as dev
-	on dev.delivery_type = b.delivery_type and dev.seller_name = b.nome_seller and 	(case 
+	on dev.delivery_type = b.delivery_type and UPPER(TRIM(dev.seller_name)) = b.nome_seller and 	(case 
 		when dev.delivery_type = 'MILKRUN' then dev.delivery_collect_number
 		else dev.delivery_number
 	end) = b.doc_dft
 left join 
 	showcase.c_operation_outbound_delivery  as dev1
-	on b.delivery_type = dev1.delivery_type and  b.nome_seller = dev1.seller_name and b.doc_dft = dev1.delivery_collect_number
+	on b.delivery_type = dev1.delivery_type and  b.nome_seller = UPPER(TRIM(dev1.seller_name)) and b.doc_dft = dev1.delivery_collect_number
 	and dev1.delivery_type in ('MILKRUN') and dev1.milkrun_last_status_date is not null
 left join 
 	showcase.c_operation_outbound_delivery  as dev2
-	on b.delivery_type = dev2.delivery_type and  b.nome_seller = dev2.seller_name and b.doc_dft = dev2.delivery_number
+	on b.delivery_type = dev2.delivery_type and  b.nome_seller = UPPER(TRIM(dev2.seller_name)) and b.doc_dft = dev2.delivery_number
 	and dev2.delivery_type in ('DROPSHIPPING','DAFITI ENVIOS')
 where 
 	dev.delivery_type in ('DROPSHIPPING','DAFITI ENVIOS','MILKRUN')
@@ -880,7 +1026,7 @@ select
 QUERY_RESUMO_STATUS_LOJA = """
 select
     delivery_type,
-    seller_name as nome_seller,
+    UPPER(TRIM(seller_name)) as nome_seller,
     seller_id,
     ultima_data as data_ultimo_ponto_mkt,
     (CURRENT_DATE - ultima_data::date) as status_loja
@@ -940,7 +1086,7 @@ SELECT
     END AS taxa_rcc
 FROM (
     SELECT 
-        dev.seller_name AS nome_seller,
+        UPPER(TRIM(dev.seller_name)) AS nome_seller,
         LEFT(dev.sale_order_store_date::date, 7) AS mes_ano_compra,
         dev.delivery_type,
         COALESCE(dev.original_item_quantity, 1) AS qtds,
@@ -973,7 +1119,7 @@ SELECT
     END AS taxa_can
 FROM (
     SELECT 
-        dev.seller_name AS nome_seller,
+        UPPER(TRIM(dev.seller_name)) AS nome_seller,
         LEFT(dev.sale_order_store_date::date, 7) AS mes_ano_compra,
         dev.delivery_type,
         COALESCE(dev.original_item_quantity, 1) AS qtds,
@@ -1094,39 +1240,43 @@ def executar_automacao():
         df_resumo_status_loja = df_resumo_status_loja.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
         print(f"[{datetime.now()}] ✅ Resumo Status Loja extraído: {len(df_resumo_status_loja):,} linhas.".replace(",", "."))
 
-        # 8. EXTRAÇÃO DA BASE VENDAS DETALHADA
+        # 8. EXTRAÇÃO DO RESUMO RCC
+        print(f"[{datetime.now()}] 📥 A extrair RESUMO RCC...")
+        df_rcc = pd.read_sql(QUERY_RESUMO_RCC, conexao)
+        col_taxa_rcc = 'taxa_rcc' if 'taxa_rcc' in df_rcc.columns else 'taxa_cancelamento'
+        if col_taxa_rcc in df_rcc.columns:
+            df_rcc[col_taxa_rcc] = pd.to_numeric(df_rcc[col_taxa_rcc], errors='coerce').fillna(0).round(6)
+            df_rcc[col_taxa_rcc] = df_rcc[col_taxa_rcc].astype(str).str.replace('.', ',', regex=False)
+        df_rcc = df_rcc.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
+        total_linhas_rcc = len(df_rcc)
+        print(f"[{datetime.now()}] ✅ RESUMO RCC extraído: TOTAL DE {total_linhas_rcc:,} LINHAS.".replace(",", "."))
+
+        # 9. EXTRAÇÃO DO RESUMO CAN
+        print(f"[{datetime.now()}] 📥 A extrair RESUMO CAN...")
+        df_can = pd.read_sql(QUERY_RESUMO_CAN, conexao)
+        col_taxa_can = 'taxa_can' if 'taxa_can' in df_can.columns else 'taxa_cancelamento'
+        if col_taxa_can in df_can.columns:
+            df_can[col_taxa_can] = pd.to_numeric(df_can[col_taxa_can], errors='coerce').fillna(0).round(6)
+            df_can[col_taxa_can] = df_can[col_taxa_can].astype(str).str.replace('.', ',', regex=False)
+        df_can = df_can.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
+        total_linhas_can = len(df_can)
+        print(f"[{datetime.now()}] ✅ RESUMO CAN extraído: TOTAL DE {total_linhas_can:,} LINHAS.".replace(",", "."))
+
+        # 10. EXTRAÇÃO DA BASE VENDAS DETALHADA
         print(f"[{datetime.now()}] 📥 A extrair BASE VENDAS...")
         df_base = pd.read_sql(QUERY_BASE, conexao)
         df_base['ultima_atualizacao_tabela'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         df_base = df_base.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
         total_linhas_base = len(df_base)
-        print(f"[{datetime.now()}] ✅ Base extraída do Redshift: TOTAL DE {total_linhas_base:,} LINHAS.".replace(",", "."))
+        print(f"[{datetime.now()}] ✅ Base extraída: TOTAL DE {total_linhas_base:,} LINHAS.".replace(",", "."))
 
-        # 9. EXTRAÇÃO DO RESUMO RCC
-        print(f"[{datetime.now()}] 📥 A extrair RESUMO RCC...")
-        df_rcc = pd.read_sql(QUERY_RESUMO_RCC, conexao)
-        
-        col_taxa_rcc = 'taxa_rcc' if 'taxa_rcc' in df_rcc.columns else 'taxa_cancelamento'
-        if col_taxa_rcc in df_rcc.columns:
-            df_rcc[col_taxa_rcc] = pd.to_numeric(df_rcc[col_taxa_rcc], errors='coerce').fillna(0).round(6)
-            df_rcc[col_taxa_rcc] = df_rcc[col_taxa_rcc].astype(str).str.replace('.', ',', regex=False)
-            
-        df_rcc = df_rcc.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
-        total_linhas_rcc = len(df_rcc)
-        print(f"[{datetime.now()}] ✅ RESUMO RCC extraído do Redshift: TOTAL DE {total_linhas_rcc:,} LINHAS.".replace(",", "."))
-
-        # 10. EXTRAÇÃO DO RESUMO CAN
-        print(f"[{datetime.now()}] 📥 A extrair RESUMO CAN...")
-        df_can = pd.read_sql(QUERY_RESUMO_CAN, conexao)
-        
-        col_taxa_can = 'taxa_can' if 'taxa_can' in df_can.columns else 'taxa_cancelamento'
-        if col_taxa_can in df_can.columns:
-            df_can[col_taxa_can] = pd.to_numeric(df_can[col_taxa_can], errors='coerce').fillna(0).round(6)
-            df_can[col_taxa_can] = df_can[col_taxa_can].astype(str).str.replace('.', ',', regex=False)
-            
-        df_can = df_can.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
-        total_linhas_can = len(df_can)
-        print(f"[{datetime.now()}] ✅ RESUMO CAN extraído do Redshift: TOTAL DE {total_linhas_can:,} LINHAS.".replace(",", ".")) 
+        # 11. EXTRAÇÃO DO DETALHE ENTREGAS (EM ABERTO ENTREGA)
+        print(f"[{datetime.now()}] 📥 A extrair ENTREGAS...")
+        df_entregas = pd.read_sql(QUERY_ENTREGAS, conexao)
+        df_entregas['ultima_atualizacao_tabela'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        df_entregas = df_entregas.astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
+        total_linhas_entregas = len(df_entregas)
+        print(f"[{datetime.now()}] ✅ Entregas extraído: TOTAL DE {total_linhas_entregas:,} LINHAS.".replace(",", "."))
         
         conexao.close()
 
@@ -1134,16 +1284,16 @@ def executar_automacao():
         print(f"[{datetime.now()}] ❌ Erro no Redshift: {e}")
         return
 
-    # 11. ENVIO DOS DADOS PARA O GOOGLE SHEETS
+    # 12. ENVIO DOS DADOS PARA O GOOGLE SHEETS
     print(f"[{datetime.now()}] 🔄 A conectar ao Google Sheets...")
     caminho_credenciais = os.path.join(os.path.dirname(__file__), "credenciais.json")
 
     try:
         gc = gspread.service_account(filename=caminho_credenciais)
-        sh_principal = gc.open_by_key(SHEET_PRINCIPAL_ID)
 
-        # Atualiza os 9 RESUMOS na planilha principal
-        print(f"[{datetime.now()}] 📊 Atualizando abas de resumo na planilha principal...")
+        # 12.1. ATUALIZA EXCLUSIVAMENTE OS RESUMOS NA PLANILHA PRINCIPAL
+        sh_principal = gc.open_by_key(SHEET_PRINCIPAL_ID)
+        print(f"[{datetime.now()}] 📊 A atualizar os 9 Resumos na planilha principal...")
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO_EXPEDICAO, df_resumo_exp)
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO_CAF, df_resumo_caf)
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO_RCC, df_rcc)
@@ -1154,34 +1304,53 @@ def executar_automacao():
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO_TRACKING, df_resumo_tracking)
         atualizar_aba_google_sheets(sh_principal, NOME_ABA_RESUMO_STATUS_LOJA, df_resumo_status_loja)
 
-        # Divisão da BASE em blocos de 300.000 linhas
+        # 12.2. ENVIO PARTICIONADO DE 'BASE' NAS PLANILHAS EXTERNAS
         blocos_base = [
             df_base[i : i + LIMIT_LINHAS_POR_SHEET]
             for i in range(0, total_linhas_base, LIMIT_LINHAS_POR_SHEET)
         ]
-
         print(f"[{datetime.now()}] 📦 Total de dados da BASE divididos em {len(blocos_base)} lote(s).")
 
-        # Envio exclusivo para as 5 planilhas externas
-        for idx in range(len(PLANILHAS_BASE)):
-            info_sheet = PLANILHAS_BASE[idx]
+        for idx in range(len(PLANILHAS_DADOS_EXTERNAS)):
+            info_sheet = PLANILHAS_DADOS_EXTERNAS[idx]
             sheet_id = info_sheet["id"]
             sh_lote = gc.open_by_key(sheet_id)
 
             if idx < len(blocos_base):
                 df_lote = blocos_base[idx]
-                print(f"[{datetime.now()}] 🚀 A enviar Lote {idx + 1} ({len(df_lote):,} linhas) para Sheet externa ID: {sheet_id}...")
+                print(f"[{datetime.now()}] 🚀 A enviar Lote {idx + 1} de BASE ({len(df_lote):,} linhas) para Sheet: {sheet_id}...")
                 atualizar_aba_google_sheets(sh_lote, NOME_ABA_BASE, df_lote)
-                print(f"[{datetime.now()}] ✅ Lote {idx + 1} gravado com sucesso!")
             else:
-                print(f"[{datetime.now()}] 🧹 A limpar planilha externa sobressalente ID: {sheet_id}...")
                 try:
                     ws = sh_lote.worksheet(NOME_ABA_BASE)
                     ws.clear()
                 except Exception:
                     pass
 
-        print(f"[{datetime.now()}] 🎉 Atualização de todas as planilhas e resumos concluída com sucesso!")
+        # 12.3. ENVIO PARTICIONADO DE 'ENTREGAS' NAS MESMAS PLANILHAS EXTERNAS
+        blocos_entregas = [
+            df_entregas[i : i + LIMIT_LINHAS_POR_SHEET]
+            for i in range(0, total_linhas_entregas, LIMIT_LINHAS_POR_SHEET)
+        ]
+        print(f"[{datetime.now()}] 📦 Total de dados de ENTREGAS divididos em {len(blocos_entregas)} lote(s).")
+
+        for idx in range(len(PLANILHAS_DADOS_EXTERNAS)):
+            info_sheet = PLANILHAS_DADOS_EXTERNAS[idx]
+            sheet_id = info_sheet["id"]
+            sh_lote = gc.open_by_key(sheet_id)
+
+            if idx < len(blocos_entregas):
+                df_lote_ent = blocos_entregas[idx]
+                print(f"[{datetime.now()}] 🚀 A enviar Lote {idx + 1} de ENTREGAS ({len(df_lote_ent):,} linhas) para Sheet: {sheet_id}...")
+                atualizar_aba_google_sheets(sh_lote, NOME_ABA_ENTREGAS, df_lote_ent)
+            else:
+                try:
+                    ws = sh_lote.worksheet(NOME_ABA_ENTREGAS)
+                    ws.clear()
+                except Exception:
+                    pass
+
+        print(f"[{datetime.now()}] 🎉 Atualização concluída: Resumos na planilha principal e BASE + ENTREGAS nas planilhas externas!")
 
     except Exception as e:
         print(f"[{datetime.now()}] ❌ Erro no Google Sheets: {e}")
