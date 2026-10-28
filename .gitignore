@@ -1,2 +1,5 @@
 .streamlit/secrets.toml
 credenciais.json
+*.log
+orquestrador.log
+jenkins_builds_processados.json
