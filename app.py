@@ -224,10 +224,11 @@ else:
         colunas_desejadas = [
             'data_solicitacao', 'mes_ano_solicitacao', 'tipo_solicitacao', 'seller_name',
             'tipo_processo', 'ultima_atualizacao_tabela', 'pedido', 'remessa_retorno',
-            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'tracking', 'sub_tracking',
-            'grupo_aberto_seller', 'auto_postagem', 'object_tag_number', 'status_rastreio',
-            'data_postagem', 'data_ultimo_status_correios', 'ultimo_status_correios',
-            'sku', 'quantidade', 'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
+            'motivo_troca', 'protocolo', 'mes_ano_finalizacao', 'data_finalizacao',
+            'tracking', 'sub_tracking', 'grupo_aberto_seller', 'auto_postagem',
+            'object_tag_number', 'status_rastreio', 'data_postagem',
+            'data_ultimo_status_correios', 'ultimo_status_correios', 'sku',
+            'quantidade', 'valor_retorno', 'data_rem', 'data_der', 'data_extravio'
         ]
 
         for item in PLANILHAS_BASE_CONFIG:
@@ -375,7 +376,7 @@ else:
         tema_selecionado = st.selectbox("Tema do Dashboard", ["Escuro 🌙", "Claro ☀️"], index=0, label_visibility="collapsed")
 
     # ==========================================
-    # ESTILIZAÇÃO CSS DEFINITIVA PARA AS ABAS
+    # ESTILIZAÇÃO CSS DEFINITIVA PARA AS ABAS E FILTROS
     # ==========================================
     if tema_selecionado == "Escuro 🌙":
         template_plotly = "plotly_dark"
@@ -452,6 +453,21 @@ else:
                     display: none !important;
                 }
 
+                /* ALINHAMENTO PERFEITO DOS FILTROS EM LINHA */
+                .filtro-rotulo-topo {
+                    height: 38px !important;
+                    display: flex !important;
+                    align-items: flex-end !important;
+                    padding-bottom: 5px !important;
+                    font-size: 13.5px !important;
+                    font-weight: 700 !important;
+                    color: #FFFFFF !important;
+                    line-height: 1.25 !important;
+                }
+
+                div[data-testid="stRadio"] {
+                    margin-top: 5px !important;
+                }
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b {
                     color: #FFFFFF !important;
                     font-weight: 700 !important;
@@ -556,6 +572,20 @@ else:
                     display: none !important;
                 }
 
+                .filtro-rotulo-topo {
+                    height: 38px !important;
+                    display: flex !important;
+                    align-items: flex-end !important;
+                    padding-bottom: 5px !important;
+                    font-size: 13.5px !important;
+                    font-weight: 700 !important;
+                    color: #0F172A !important;
+                    line-height: 1.25 !important;
+                }
+
+                div[data-testid="stRadio"] {
+                    margin-top: 5px !important;
+                }
                 div[data-testid="stRadio"] label, div[data-testid="stRadio"] p, .stMarkdown p, .stMarkdown b { color: #0F172A !important; font-weight: 700 !important; }
                 
                 .header-container-unificado {
@@ -1185,12 +1215,12 @@ else:
         )
 
         # ----------------------------------------------------
-        # 1. FILTROS DE VISÃO, PERÍODO, TRACKING E SUB-TRACKING
+        # 1. FILTROS ALINHADOS PERFEITAMENTE NA HORIZONTAL
         # ----------------------------------------------------
         col_filtro_tipo, col_filtro_mes, col_filtro_track, col_filtro_sub = st.columns([1.1, 1, 1, 1])
 
         with col_filtro_tipo:
-            st.markdown("<b>📅 Escolha o Tipo de Visão:</b>", unsafe_allow_html=True)
+            st.markdown("<div class='filtro-rotulo-topo'>📅 Tipo de Visão:</div>", unsafe_allow_html=True)
             tipo_visao_data = st.radio(
                 "Tipo de Visão de Data",
                 ["Mês/Ano Solicitação", "Mês/Ano Finalização"],
@@ -1199,6 +1229,7 @@ else:
             )
 
         coluna_data_alvo = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
+        coluna_data_exata = "data_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "data_finalizacao"
 
         if coluna_data_alvo in df_filtrado_reversa.columns:
             meses_unicos = sorted(
@@ -1210,7 +1241,7 @@ else:
             meses_disponiveis = ["Todos"]
 
         with col_filtro_mes:
-            st.markdown(f"<b>📆 Selecione o Período ({tipo_visao_data}):</b>", unsafe_allow_html=True)
+            st.markdown(f"<div class='filtro-rotulo-topo'>📆 Período ({tipo_visao_data}):</div>", unsafe_allow_html=True)
             mes_selecionado = st.selectbox(
                 f"Selecione o {tipo_visao_data}",
                 meses_disponiveis,
@@ -1218,7 +1249,7 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Base pré-filtrada por período para listar os trackings válidos
+        # Base pré-filtrada por período
         df_base_previa = df_filtrado_reversa.copy()
         if mes_selecionado != "Todos" and coluna_data_alvo in df_base_previa.columns:
             df_base_previa = df_base_previa[df_base_previa[coluna_data_alvo].astype(str) == mes_selecionado]
@@ -1230,7 +1261,7 @@ else:
             opcoes_tracking = ["Todos"]
 
         with col_filtro_track:
-            st.markdown("<b>🚚 Tracking:</b>", unsafe_allow_html=True)
+            st.markdown("<div class='filtro-rotulo-topo'>🚚 Tracking:</div>", unsafe_allow_html=True)
             tracking_selecionado = st.selectbox(
                 "Selecione o Tracking",
                 opcoes_tracking,
@@ -1238,7 +1269,6 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Base filtrada por período e tracking para calcular os sub-trackings válidos
         df_base_pre_sub = df_base_previa.copy()
         if tracking_selecionado != "Todos" and 'tracking' in df_base_pre_sub.columns:
             df_base_pre_sub = df_base_pre_sub[df_base_pre_sub['tracking'].astype(str).str.strip().str.upper() == str(tracking_selecionado).strip().upper()]
@@ -1250,7 +1280,7 @@ else:
             opcoes_sub_tracking = ["Todos"]
 
         with col_filtro_sub:
-            st.markdown("<b>🏷️ Sub-Tracking:</b>", unsafe_allow_html=True)
+            st.markdown("<div class='filtro-rotulo-topo'>🏷️ Sub-Tracking:</div>", unsafe_allow_html=True)
             sub_tracking_selecionado = st.selectbox(
                 "Selecione o Sub-Tracking",
                 opcoes_sub_tracking,
@@ -1258,7 +1288,7 @@ else:
                 label_visibility="collapsed"
             )
 
-        # Aplicação final dos 3 filtros na base da Reversa
+        # Base final filtrada
         df_base_reversa_periodo = df_base_pre_sub.copy()
         if sub_tracking_selecionado != "Todos" and 'sub_tracking' in df_base_reversa_periodo.columns:
             df_base_reversa_periodo = df_base_reversa_periodo[df_base_reversa_periodo['sub_tracking'].astype(str).str.strip().str.upper() == str(sub_tracking_selecionado).strip().upper()]
@@ -1479,28 +1509,67 @@ else:
 
         st.write("---")
 
-        # 4. GRÁFICOS: VOLUME MENSAL, MOTIVOS, TOP SKUS E ATRASO DO SELLER
+        # ----------------------------------------------------
+        # 4. GRÁFICOS: VOLUME DIÁRIO OU MENSAL (DINÂMICO)
+        # ----------------------------------------------------
         st.markdown("<h3 style='text-align: center;'>📈 Análise Gráfica das Devoluções (Remessas Únicas)</h3>", unsafe_allow_html=True)
         st.write("")
 
-        st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
-        col_mes_grafico = "mes_ano_solicitacao" if tipo_visao_data == "Mês/Ano Solicitação" else "mes_ano_finalizacao"
-        
-        if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
-            df_temp = df_filtrado_reversa[[col_mes_grafico, colunas_existentes[0]]].dropna() if colunas_existentes else df_filtrado_reversa[[col_mes_grafico]].dropna()
+        # Se selecionou um período específico, transforma em visão DIÁRIA desse mês
+        eh_visao_diaria = (mes_selecionado != "Todos")
+
+        if eh_visao_diaria:
+            st.subheader(f"📅 Volume Diário de Remessas Únicas ({mes_selecionado})")
             
-            if colunas_existentes:
-                df_grafico_mes = df_temp.groupby(col_mes_grafico, as_index=False)[colunas_existentes[0]].nunique()
-                df_grafico_mes.columns = [col_mes_grafico, 'qtd_remessas_unicas']
+            # Escolhe a coluna de data diária correspondente
+            col_data_diaria = coluna_data_exata if (coluna_data_exata in df_base_reversa_periodo.columns and not df_base_reversa_periodo[coluna_data_exata].dropna().empty) else 'data_solicitacao'
+            
+            if col_data_diaria in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+                df_temp_dia = df_base_reversa_periodo.copy()
+                df_temp_dia['dt_formatada'] = pd.to_datetime(df_temp_dia[col_data_diaria], errors='coerce')
+                df_temp_dia = df_temp_dia.dropna(subset=['dt_formatada'])
+                
+                df_temp_dia['dia_label'] = df_temp_dia['dt_formatada'].dt.strftime('%d/%m')
+                df_temp_dia['dia_sort'] = df_temp_dia['dt_formatada'].dt.strftime('%Y-%m-%d')
+                
+                col_contagem = colunas_existentes[0] if colunas_existentes else 'pedido'
+                if col_contagem in df_temp_dia.columns:
+                    df_grafico_tempo = df_temp_dia.groupby(['dia_sort', 'dia_label'], as_index=False)[col_contagem].nunique()
+                    df_grafico_tempo.rename(columns={col_contagem: 'qtd_remessas_unicas'}, inplace=True)
+                else:
+                    df_grafico_tempo = df_temp_dia.groupby(['dia_sort', 'dia_label'], as_index=False).size()
+                    df_grafico_tempo.rename(columns={'size': 'qtd_remessas_unicas'}, inplace=True)
+
+                df_grafico_tempo = df_grafico_tempo.sort_values('dia_sort')
+                eixo_x_col = 'dia_label'
             else:
-                df_grafico_mes = df_temp.groupby(col_mes_grafico, as_index=False).size()
-                df_grafico_mes.columns = [col_mes_grafico, 'qtd_remessas_unicas']
+                df_grafico_tempo = pd.DataFrame()
+                eixo_x_col = 'dia_label'
+        else:
+            st.subheader("📅 Volume de Remessas Únicas (Mês/Ano)")
+            col_mes_grafico = coluna_data_alvo
+            
+            if col_mes_grafico in df_filtrado_reversa.columns and not df_filtrado_reversa.empty:
+                df_temp_mes = df_filtrado_reversa.copy()
+                col_contagem = colunas_existentes[0] if colunas_existentes else 'pedido'
+                
+                if col_contagem in df_temp_mes.columns:
+                    df_grafico_tempo = df_temp_mes.groupby(col_mes_grafico, as_index=False)[col_contagem].nunique()
+                    df_grafico_tempo.rename(columns={col_contagem: 'qtd_remessas_unicas'}, inplace=True)
+                else:
+                    df_grafico_tempo = df_temp_mes.groupby(col_mes_grafico, as_index=False).size()
+                    df_grafico_tempo.rename(columns={'size': 'qtd_remessas_unicas'}, inplace=True)
 
-            df_grafico_mes = df_grafico_mes.sort_values(col_mes_grafico)
+                df_grafico_tempo = df_grafico_tempo.sort_values(col_mes_grafico)
+                eixo_x_col = col_mes_grafico
+            else:
+                df_grafico_tempo = pd.DataFrame()
+                eixo_x_col = col_mes_grafico
 
+        if not df_grafico_tempo.empty:
             fig_tempo = px.bar(
-                df_grafico_mes,
-                x=col_mes_grafico,
+                df_grafico_tempo,
+                x=eixo_x_col,
                 y='qtd_remessas_unicas',
                 text='qtd_remessas_unicas',
                 template=template_plotly,
@@ -1512,12 +1581,14 @@ else:
                 plot_bgcolor='rgba(0,0,0,0)',
                 margin=dict(l=20, r=20, t=30, b=20),
                 height=350,
-                xaxis=dict(showgrid=False),
+                xaxis=dict(showgrid=False, type='category'),
                 yaxis=dict(showgrid=False),
                 xaxis_title="",
                 yaxis_title="Remessas Únicas"
             )
             st.plotly_chart(fig_tempo, use_container_width=True)
+        else:
+            st.info("Sem dados temporais disponíveis para exibição.")
 
         st.write("")
         
