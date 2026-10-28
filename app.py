@@ -441,10 +441,11 @@ else:
                 }
                 [data-testid="stSidebar"] button:hover { background-color: #EF4444 !important; border-color: #EF4444 !important; }
 
+                /* ESTILIZAÇÃO DAS ABAS COM CONTRASTE REAL */
                 .stTabs [data-baseweb="tab-list"] {
-                    gap: 3.5rem !important;
+                    gap: 2rem !important;
                     background-color: transparent !important;
-                    border-bottom: 1.5px solid #1E293B !important;
+                    border-bottom: 2px solid #1E293B !important;
                     padding-bottom: 0px !important;
                     margin-bottom: 25px !important;
                 }
@@ -453,8 +454,10 @@ else:
                     background-color: transparent !important;
                     background: transparent !important;
                     border: none !important;
-                    padding: 8px 12px 14px 12px !important;
+                    padding: 10px 18px 14px 18px !important;
                     height: auto !important;
+                    border-radius: 8px 8px 0px 0px !important;
+                    transition: all 0.2s ease-in-out !important;
                 }
 
                 .stTabs [data-baseweb="tab"] p, 
@@ -462,19 +465,23 @@ else:
                 .stTabs [data-baseweb="tab"] div {
                     font-size: 19px !important;
                     font-weight: 700 !important;
-                    color: #64748B !important;
+                    color: #94A3B8 !important; /* Cinzento legível e destacado para aba inativa */
+                }
+
+                .stTabs [data-baseweb="tab"]:hover {
+                    background-color: rgba(255, 255, 255, 0.04) !important;
                 }
 
                 .stTabs [data-baseweb="tab"]:hover p,
                 .stTabs [data-baseweb="tab"]:hover span {
-                    color: #CBD5E1 !important;
+                    color: #FFFFFF !important;
                 }
 
                 .stTabs [data-baseweb="tab"][aria-selected="true"] {
-                    background-color: transparent !important;
+                    background-color: rgba(59, 130, 246, 0.08) !important;
                     border: none !important;
                     border-bottom: 3.5px solid #3B82F6 !important;
-                    border-radius: 0px !important;
+                    border-radius: 8px 8px 0px 0px !important;
                 }
 
                 .stTabs [data-baseweb="tab"][aria-selected="true"] p,
@@ -483,12 +490,8 @@ else:
                     font-weight: 900 !important;
                 }
 
-                .stTabs [data-baseweb="tab-highlight"] {
-                    display: none !important;
-                }
-                .stTabs [data-baseweb="tab-border"] {
-                    display: none !important;
-                }
+                .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+                .stTabs [data-baseweb="tab-border"] { display: none !important; }
 
                 .filtro-rotulo-topo {
                     height: 38px !important;
@@ -561,9 +564,9 @@ else:
                 [data-testid="stSidebar"] * { color: #0F172A !important; }
 
                 .stTabs [data-baseweb="tab-list"] {
-                    gap: 3.5rem !important;
+                    gap: 2rem !important;
                     background-color: transparent !important;
-                    border-bottom: 1.5px solid #E2E8F0 !important;
+                    border-bottom: 2px solid #E2E8F0 !important;
                     padding-bottom: 0px !important;
                     margin-bottom: 25px !important;
                 }
@@ -572,7 +575,7 @@ else:
                     background-color: transparent !important;
                     background: transparent !important;
                     border: none !important;
-                    padding: 8px 12px 14px 12px !important;
+                    padding: 10px 18px 14px 18px !important;
                     height: auto !important;
                 }
 
@@ -580,12 +583,12 @@ else:
                 .stTabs [data-baseweb="tab"] span {
                     font-size: 19px !important;
                     font-weight: 700 !important;
-                    color: #94A3B8 !important;
+                    color: #64748B !important;
                 }
 
                 .stTabs [data-baseweb="tab"]:hover p,
                 .stTabs [data-baseweb="tab"]:hover span {
-                    color: #475569 !important;
+                    color: #0F172A !important;
                 }
 
                 .stTabs [data-baseweb="tab"][aria-selected="true"] {
@@ -601,12 +604,8 @@ else:
                     font-weight: 900 !important;
                 }
 
-                .stTabs [data-baseweb="tab-highlight"] {
-                    display: none !important;
-                }
-                .stTabs [data-baseweb="tab-border"] {
-                    display: none !important;
-                }
+                .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+                .stTabs [data-baseweb="tab-border"] { display: none !important; }
 
                 .filtro-rotulo-topo {
                     height: 38px !important;
@@ -685,11 +684,11 @@ else:
         return t_atual, t_ant
 
     # ==========================================
-    # ABAS PRINCIPAIS COM st.tabs (VENDAS PRIMEIRO)
+    # ABAS PRINCIPAIS COM st.tabs (TÍTULOS EM MAIÚSCULAS)
     # ==========================================
     aba_vendas, aba_reversa = st.tabs([
-        "💰 Vendas",
-        "🔄 Operação Reversa"
+        "💰 VENDAS",
+        "🔄 OPERAÇÃO REVERSA"
     ])
 
     # ==========================================
@@ -844,7 +843,7 @@ else:
                     <div style='font-size: 12px; color: #94A3B8; font-weight: 800; text-transform: uppercase;'>🎧 SAC <span style='opacity:0.5;'>(5%)</span></div>
                     <div style='font-size: 42px; font-weight: 900; color: {cor_sac_v}; margin: 6px 0 2px 0;'>{v_sac_v:.2f}%</div>
                     <div style='font-size: 13px; color: #94A3B8; font-weight: 700; margin-bottom: 18px;'>Ant: {a_sac_v:.2f}%</div>
-                    <div style='background-color: {bg_caf_v}; color: {cor_sac_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
+                    <div style='background-color: {bg_sac_v}; color: {cor_sac_v}; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; margin-top: auto;'>
                         {diag_sac_v}
                     </div>
                 </div>
@@ -918,7 +917,7 @@ else:
 
         st.write("---")
 
-        # 5. RAIO-X: PEDIDOS EM ABERTO (BACKLOG)
+        # 5. RAIO-X: PEDIDOS EM ABERTO (BACKLOG) - ALINHAMENTO DAS COLUNAS
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Raio-X: Pedidos em Aberto (Backlog)</h3>", unsafe_allow_html=True)
         ped_ok, ped_hj, ped_at = 0, 0, 0
         crit_3_14, crit_15 = 0, 0
@@ -968,7 +967,8 @@ else:
             st.markdown(f"<div class='metric-card' style='border-bottom: 5px solid #3B82F6 !important;'><div class='metric-card-label'>📦 Total Fila</div><div class='metric-card-value'>{tot_fila:,}</div></div>".replace(",", "."), unsafe_allow_html=True)
 
         st.write("")
-        col_crit_cards, col_crit_graf = st.columns([1, 2])
+        # Proporção [1.3, 3] alinha perfeitamente a altura dos 2 cartões com o gráfico de barras
+        col_crit_cards, col_crit_graf = st.columns([1.3, 3])
         with col_crit_cards:
             st.markdown(f"""
                 <div class='metric-card' style='background: rgba(245, 158, 11, 0.12); border: 1px solid #F59E0B40; margin-bottom: 15px; text-align: left; padding: 18px;'>
@@ -1002,7 +1002,7 @@ else:
         st.write("---")
 
         # ----------------------------------------------------
-        # 6. LINHA DO TEMPO DE VENCIMENTOS (ENTREGAS)
+        # 6. LINHA DO TEMPO DE VENCIMENTOS (ENTREGAS) - TEXTO DA LEGENDA BRANCO
         # ----------------------------------------------------
         if not f_base_entregas.empty and 'grupo_dias' in f_base_entregas.columns:
             st.markdown("""
@@ -1080,7 +1080,14 @@ else:
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
                 height=350,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="left",
+                    x=0,
+                    font=dict(color="#FFFFFF", size=13)  # Legenda agora totalmente nítida em branco
+                ),
                 margin=dict(l=20, r=20, t=40, b=30),
                 xaxis=dict(showgrid=False, type='category', title=""),
                 yaxis=dict(showgrid=False, showticklabels=False, range=[0, max_y_venc * 1.25])
@@ -2178,7 +2185,7 @@ else:
 
         st.write("---")
 
-        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA (EXCLUSIVO)
+        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA COM PERÍODO DOS 2 GRÁFICOS
         html_memorial_reversa = textwrap.dedent("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13.5px; color: #CBD5E1; line-height: 1.8; margin-bottom: 25px;'>
                 <div style='color: #FFFFFF; font-size: 17px; font-weight: 800; margin-bottom: 16px;'>📊 Memorial de Cálculo: Entenda seus Indicadores de Logística Reversa</div>
@@ -2196,8 +2203,10 @@ else:
                 <div style='margin-bottom: 4px; font-weight: 800; color: #60A5FA;'>4. Diagnóstico por Motivo, SKU e Categoria</div>
                 <div style='margin: 0 0 12px 10px;'>🔍 <b>Concentração de Falhas:</b> Identifica os 10 maiores ofensores em volume físico (peças devolvidas) e impacto financeiro (R$ em devolução), permitindo distinguir se a causa é atrito cadastral (ex: tamanho/tabela de medidas) ou defeito de produto.</div>
                 
-                <div style='background-color: #0F172A; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8;'>
-                    ⚠️ <b>Critério do Período Filtrado:</b> Os gráficos e listas detalhadas obedecem estritamente à seleção do menu superior: <i>Mês/Ano Solicitação</i> (data em que o cliente pediu a troca) ou <i>Mês/Ano Finalização</i> (data em que o processo foi concluído no lojista). O Card de Taxa (%) segue a regra de virada mensal (corte até dia 04 no mês anterior; dia 05 em diante no mês atual).
+                <div style='background-color: #0F172A; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8; line-height: 1.6;'>
+                    ⚠️ <b>Regras dos Períodos Analisados:</b><br>
+                    • <b>Gráficos Superiores (Evolução Mensal e Top Sellers):</b> São baseados no campo <i>mes_ano_definido</i>, que segue rigorosamente a <b>data de promessa ao cliente para Dropshipping</b> e a <b>data de pagamento para Dafiti Envios / Milkrun</b>.<br>
+                    • <b>Gráficos Detalhados e Listas (Motivos, SKUs, Categorias e Jornada):</b> Obedecem ao seletor do topo da tela: <i>Mês/Ano Solicitação</i> (data em que o cliente gerou o pedido de devolução) ou <i>Mês/Ano Finalização</i> (data da conclusão do processo no lojista).
                 </div>
             </div>
         """)
