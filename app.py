@@ -1307,7 +1307,11 @@ else:
                 <div style='margin: 0 0 12px 10px;'>🚚 <b>Performance de Entrega:</b> Avalia se a remessa foi entregue ao cliente final dentro da promessa estipulada. A linha do tempo projeta as entregas em aberto calculando a diferença entre a <i>Data de Promessa ao Cliente</i> e a <i>Data Atual</i>, separando em atrasados, vencimentos do dia e prazos futuros.</div>
                 
                 <div style='margin-bottom: 4px; font-weight: 800; color: #60A5FA;'>5. Cancelamentos e Financeiro</div>
-                <div style='margin: 0 0 14px 10px;'>💰 <b>Valor Prejudicado (Impacto Financeiro):</b> Soma do valor total transacionado (R$) de pedidos cancelados por ruptura (CAF), cancelamentos de clientes (CAN) e falhas operacionais na coleta (RCC).</div>
+                <div style='margin: 0 0 12px 10px;'>💰 <b>Valor Prejudicado (Impacto Financeiro):</b> Soma do valor total transacionado (R$) de pedidos cancelados por ruptura (CAF), cancelamentos de clientes (CAN) e falhas operacionais na coleta (RCC).</div>
+                
+                <div style='margin-bottom: 4px; font-weight: 800; color: #60A5FA;'>6. Arquivos para Download (.csv)</div>
+                <div style='margin: 0 0 4px 10px;'>📥 <b>Descarregar Pedidos em Aberto:</b> Pedidos que constam em aberto do processo de expedição seller.</div>
+                <div style='margin: 0 0 14px 10px;'>📥 <b>Descarregar Entregas em Aberto:</b> Pedidos que constam expedidos, mas que ainda não foram finalizados ou entregues aos clientes (especificamente para o modal Dropshipping).</div>
                 
                 <div style='background-color: #0F172A; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8;'>
                     ⚠️ <b>Regra de Período Oficial:</b> Até o <b>dia 04</b> são consolidados os dados fechados do mês anterior. A partir do <b>dia 05</b>, passam a vigorar os dados acumulados do mês corrente (baseados na data de promessa ao cliente para Dropshipping e data de pagamento para Dafiti Envios/Milkrun).
@@ -1315,7 +1319,6 @@ else:
             </div>
         """)
         st.html(html_memorial_vendas)
-
         st.write("")
 
         # 10. DOWNLOAD CSV VENDAS E ENTREGAS
@@ -2185,7 +2188,7 @@ else:
 
         st.write("---")
 
-        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA COM PERÍODO DOS 2 GRÁFICOS
+        # 6. MEMORIAL DE CÁLCULO - OPERAÇÃO REVERSA
         html_memorial_reversa = textwrap.dedent("""
             <div style='background-color: #1E293B; padding: 25px 30px; border-radius: 16px; border: 1px solid #334155; font-size: 13.5px; color: #CBD5E1; line-height: 1.8; margin-bottom: 25px;'>
                 <div style='color: #FFFFFF; font-size: 17px; font-weight: 800; margin-bottom: 16px;'>📊 Memorial de Cálculo: Entenda seus Indicadores de Logística Reversa</div>
@@ -2202,6 +2205,9 @@ else:
                 
                 <div style='margin-bottom: 4px; font-weight: 800; color: #60A5FA;'>4. Diagnóstico por Motivo, SKU e Categoria</div>
                 <div style='margin: 0 0 12px 10px;'>🔍 <b>Concentração de Falhas:</b> Identifica os 10 maiores ofensores em volume físico (peças devolvidas) e impacto financeiro (R$ em devolução), permitindo distinguir se a causa é atrito cadastral (ex: tamanho/tabela de medidas) ou defeito de produto.</div>
+                
+                <div style='margin-bottom: 4px; font-weight: 800; color: #60A5FA;'>5. Arquivo para Download (.csv)</div>
+                <div style='margin: 0 0 14px 10px;'>📥 <b>Descarregar Relatório Completo em CSV:</b> Base detalhada de devoluções contendo todas as solicitações criadas nos últimos 6 meses com seus respectivos status, SKUs, categorias e valores de retorno.</div>
                 
                 <div style='background-color: #0F172A; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #F59E0B; font-size: 12.5px; color: #94A3B8; line-height: 1.6;'>
                     ⚠️ <b>Regras dos Períodos Analisados:</b><br>
