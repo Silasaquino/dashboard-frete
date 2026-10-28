@@ -1061,19 +1061,15 @@ else:
         st.markdown("<h3 style='margin-bottom: 20px; font-weight: 800;'>Impacto de Cancelamentos</h3>", unsafe_allow_html=True)
         c_sel, c_col, c_cli, v_fin = 0, 0, 0, 0.0
 
-        # 1. Cancelado (Seller) - Soma real do campo 'caf' da aba RESUMO_CAF
         if not f_caf.empty and 'caf' in f_caf.columns:
             c_sel = int(pd.to_numeric(f_caf['caf'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # 2. Falha na Coleta - Soma real do campo 'rcc' da aba RESUMO_RCC
         if not f_rcc.empty and 'rcc' in f_rcc.columns:
             c_col = int(pd.to_numeric(f_rcc['rcc'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # 3. Cancelado (Cliente) - Soma real do campo 'can' da aba RESUMO_CAN
         if not f_can.empty and 'can' in f_can.columns:
             c_cli = int(pd.to_numeric(f_can['can'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0).sum())
 
-        # 4. Valor Prejudicado
         if not f_prejudicado.empty and 'valor_prej' in f_prejudicado.columns:
             serie_prej = (
                 f_prejudicado['valor_prej']
@@ -1228,10 +1224,23 @@ else:
 
         st.write("")
 
-        # 2. KPIS PRINCIPAIS
+        # ----------------------------------------------------
+        # 2. KPIS PRINCIPAIS (COM VALOR RETORNO NO LUGAR DE MODAL)
+        # ----------------------------------------------------
         colunas_chaves = ['pedido', 'remessa_retorno', 'protocolo']
         colunas_existentes = [c for c in colunas_chaves if c in df_base_reversa_periodo.columns]
         qtd_remessas_unicas = df_base_reversa_periodo[colunas_existentes[0]].nunique() if (colunas_existentes and not df_base_reversa_periodo.empty) else len(df_base_reversa_periodo)
+
+        total_valor_retorno = 0.0
+        if 'valor_retorno' in df_base_reversa_periodo.columns and not df_base_reversa_periodo.empty:
+            serie_retorno = (
+                df_base_reversa_periodo['valor_retorno']
+                .astype(str)
+                .str.replace('R$', '', regex=False)
+                .str.replace(' ', '', regex=False)
+                .str.replace(',', '.', regex=False)
+            )
+            total_valor_retorno = float(pd.to_numeric(serie_retorno, errors='coerce').fillna(0.0).sum())
 
         col_dev_r = 'devolvido' if 'devolvido' in df_filtrado_resumo.columns else 'devolvido_seller'
         v_dev, a_dev = calcular_taxas_com_corte(df_filtrado_resumo, col_dev_r, 'qtd_etr', 'mes_ano_definido')
@@ -1257,10 +1266,10 @@ else:
         with col_kpi3:
             st.markdown(f"""
                 <div class='metric-card' style='height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center;'>
-                    <div class='metric-card-label'>Modal Analisado</div>
-                    <div class='metric-card-value' style='font-size: 30px;'>{modal_selecionado}</div>
+                    <div class='metric-card-label'>Valor Retorno (R$)</div>
+                    <div class='metric-card-value' style='font-size: 30px; color: #60A5FA;'>R$ {total_valor_retorno:,.2f}</div>
                 </div>
-            """, unsafe_allow_html=True)
+            """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with col_kpi4:
             st.markdown(f"""
                 <div class='metric-card' style='height: 180px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; justify-content: space-between;'>
@@ -1642,7 +1651,6 @@ else:
 
             fig_jornada = go.Figure()
 
-            # Setas direcionadas espaçadas conectando o fluxo principal
             for i in range(len(x_main) - 1):
                 fig_jornada.add_annotation(
                     x=x_main[i + 1] - 0.12,
@@ -1681,12 +1689,11 @@ else:
                     showlegend=False, hoverinfo='text'
                 ))
 
-            # Mapeamento oficial de cores do sub_tracking
             mapa_cores_sub = {
-                'ENTRADA NO SELLER': '#10B981',    # Verde
-                'REVERSAS EXPIRADAS': '#F59E0B',   # Laranja
-                'RECUSA SELLER': '#991B1B',        # Vermelho Escuro
-                'EXTRAVIO': '#EF4444'              # Vermelho Vivo
+                'ENTRADA NO SELLER': '#10B981',
+                'REVERSAS EXPIRADAS': '#F59E0B',
+                'RECUSA SELLER': '#991B1B',
+                'EXTRAVIO': '#EF4444'
             }
 
             df_finalizados = df_base_reversa_periodo[df_base_reversa_periodo['tracking'].astype(str).str.strip().str.upper() == 'FINALIZADO']
