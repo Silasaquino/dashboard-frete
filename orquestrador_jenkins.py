@@ -61,6 +61,11 @@ CONFIG_JOBS = {
         "nome": "Controle de Frete (Reversa / Devolução)",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_reversa_devolucao/api/json",
         "script": "controle_frete.py"
+    },
+    "bp_forecast": {
+        "nome": "Envio BP Forecast",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_manual_input.transports_envio_bp_forecast/api/json",
+        "script": "controle_frete.py"
     }
 }
 
