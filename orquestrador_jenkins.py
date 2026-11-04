@@ -2,8 +2,19 @@ import os
 import sys
 import json
 import time
+import socket
 import subprocess
 from datetime import datetime
+
+# ==========================================
+# TRAVA DE INSTÂNCIA ÚNICA (Evita processos fantasmas)
+# ==========================================
+trava_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    trava_socket.bind(("127.0.0.1", 47289))
+except socket.error:
+    print("⚠️ AVISO: Já existe uma instância do orquestrador rodando em segundo plano. Encerrando esta execução duplicada.")
+    sys.exit(0)
 
 # Garante que a biblioteca requests está acessível
 try:
@@ -35,11 +46,26 @@ CONFIG_JOBS = {
         "nome": "Cockpit Doca",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_raw_sap_ewm.dafiti_cockpit/api/json",
         "script": "cockpit_doca.py"
+    },
+    "frete_milkrun": {
+        "nome": "Controle de Frete (Milkrun)",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_coleta_milkrun/api/json",
+        "script": "controle_frete.py"
+    },
+    "frete_envios": {
+        "nome": "Controle de Frete (Envios)",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_envios/api/json",
+        "script": "controle_frete.py"
+    },
+    "frete_reversa": {
+        "nome": "Controle de Frete (Reversa / Devolução)",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_reversa_devolucao/api/json",
+        "script": "controle_frete.py"
     }
 }
 
 # ==========================================
-# 2. FUNÇÕES DE SUPORTE E HISTÓRICO DAS 2 ÚLTIMAS
+# 2. FUNÇÕES DE SUPORTE E HISTÓRICO
 # ==========================================
 def carregar_estado():
     if os.path.exists(ARQUIVO_ESTADO):
@@ -77,13 +103,12 @@ def atualizar_arquivo_log(estado):
 
         linhas.append(f"📌 {nome.upper()}:")
         if not registros:
-            linhas.append("   (Nenhuma execução gravada até o momento)")
+            linhas.append("   (Aguardando próxima atualização)")
         elif len(registros) == 1:
             r = registros[0]
             linhas.append(f"   • ÚLTIMA VEZ:    {r['data_hora']} | Build #{r['build']} | Duração: {r['duracao']}s | Status: {r['status']}")
             linhas.append("   • PENÚLTIMA VEZ: (Aguardando próxima atualização)")
         else:
-            # O índice 0 é a penúltima e o índice 1 é a última
             penultima = registros[0]
             ultima = registros[1]
             linhas.append(f"   • PENÚLTIMA VEZ: {penultima['data_hora']} | Build #{penultima['build']} | Duração: {penultima['duracao']}s | Status: {penultima['status']}")
@@ -117,7 +142,6 @@ def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
 
     estado["historico"][chave_job].append(novo_registro)
 
-    # Mantém estritamente no máximo os 2 últimos
     if len(estado["historico"][chave_job]) > 2:
         estado["historico"][chave_job] = estado["historico"][chave_job][-2:]
 
@@ -150,6 +174,7 @@ def executar_script(nome_script):
     except Exception:
         return False, round(time.time() - inicio, 1)
 
+
 # ==========================================
 # 3. VERIFICAÇÃO DO JENKINS
 # ==========================================
@@ -173,7 +198,7 @@ def checar_job(chave_job, config, estado):
             ultimo_processado = estado["builds"].get(chave_job)
 
             # Primeira execução
-            if ultimo_processado is None:
+            if ultimo_processado is None or ultimo_processado == 0:
                 estado["builds"][chave_job] = build_atual
                 salvar_estado(estado)
                 registrar_execucao_historico(chave_job, build_atual, 0.0, "Inicializado", estado)
@@ -190,6 +215,7 @@ def checar_job(chave_job, config, estado):
 
     except Exception:
         pass
+
 
 # ==========================================
 # 4. LOOP PRINCIPAL
