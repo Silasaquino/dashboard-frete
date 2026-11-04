@@ -27,9 +27,10 @@ REDSHIFT_PASSWORD = secrets["REDSHIFT_PASSWORD"]
 # ==========================================
 # 2. CONFIGURAÇÕES DAS PLANILHAS
 # ==========================================
-# Planilha Principal (Resumo Consolidado)
+# Planilha Principal (Resumo Consolidado e BP)
 SHEET_RESUMO_ID = "1i08DkGeUZQk0agkSb1ruLLEiOuUMST0XjHkosgaFN0I"
 ABA_RESUMO = "RESUMO"
+ABA_BP = "BP"
 
 TAMANHO_LOTE = 10000
 
@@ -62,7 +63,10 @@ SELECT
         ELSE 'DEMAIS CIDADES'
     END AS cidade_class,
     faixa_peso,
-	separacao
+	separacao,
+    uf,
+    regiao,
+    macroregiao
 FROM (
     -- 1. ENVIOS
     SELECT 
@@ -80,7 +84,10 @@ FROM (
         'ENVIOS' AS etapa,
         NULL AS cidade,
         faixa_peso,
-		separacao
+		separacao,
+        uf,
+	    regiao,
+	    macroregiao
     FROM (
         SELECT 
             EXPEDICAO AS data_filtro,
@@ -113,12 +120,15 @@ FROM (
             FRETE_NET_AJUSTADO AS custos,
             valorvenda,
             faixa_peso,
-			separacao
+			separacao,
+            uf,
+	        regiao,
+	        macroregiao
         FROM curated_data.controle_frete_envios
         WHERE EXPEDICAO >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))  
     )
     GROUP BY 
-        1, 2, 3, 4, 5, 6, 7, 13,14,15
+        1, 2, 3, 4, 5, 6, 7, 13,14,15,16,17,18
         
     UNION ALL 
 
@@ -138,7 +148,10 @@ FROM (
         etapa,
         NULL AS cidade,
         faixa_peso,
-		separacao
+		separacao,
+        uf,
+	    regiao,
+	    macroregiao
     FROM (
         SELECT 
             data_filtro,
@@ -167,12 +180,15 @@ FROM (
                 ELSE 'INSUCESSO'
             END AS etapa,
             faixa_peso,
-			separacao
+			separacao,
+            UPPER (uf) as uf,
+	        UPPER (regiao) as regiao,
+	        UPPER (macroregiao) as macroregiao
         FROM curated_data.controle_frete_reversa_devolucao
         WHERE data_filtro >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))  
     )
     GROUP BY 
-        1, 2, 3, 4, 5, 6, 7, 12, 13,14,15
+        1, 2, 3, 4, 5, 6, 7, 12, 13,14,15,16,17,18
         
     UNION ALL 
 
@@ -192,7 +208,10 @@ FROM (
         'COLETA MR' AS etapa,
         cidade,
         faixa_peso,
-		separacao
+		separacao,
+        UPPER (uf) as uf,
+	    UPPER (regiao) as regiao,
+	    UPPER (macroregiao) as macroregiao
     FROM (
         SELECT 
             expedicao AS data_filtro,
@@ -216,29 +235,58 @@ FROM (
             valorvenda,
             cidade_seller AS cidade,
             faixa_peso,
-			separacao
+			separacao,
+            UPPER (uf_seller) as uf,
+	        UPPER (regiao_seller) as regiao,
+	        UPPER (macroregiao_seller) as macroregiao
         FROM curated_data.controle_frete_coleta_milkrun	
         WHERE EXPEDICAO >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))  
     )
     GROUP BY 
-        1, 2, 3, 4, 5, 6, 7, 13,14,15
+        1, 2, 3, 4, 5, 6, 7, 13,14,15,16,17,18
 )
 """
 
-# 3.2 Queries de Erros / Inconsistências
+# 3.2 Query BP Forecast
+QUERY_BP_FORECAST = """
+SELECT 
+    tipo_cobranca,
+    tipo_expedicao,
+    transportador,
+    to_date(periodo, 'dd/mm/yyyy') as periodo,
+    left(to_date(periodo, 'dd/mm/yyyy'), 7) as mes_ano_periodo,
+    cidade,
+    regiao,
+    uf,
+    UPPER (macroregiao) as macroregiao,
+    modal,
+    faixa_peso,
+    UPPER (contrato) as contrato,
+    chave,
+    remessas,
+    frete,
+    versao,
+    sheet_title
+FROM 
+    manual_input.envio_bp_forecast
+WHERE
+    to_date(periodo, 'dd/mm/yyyy') >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))
+"""
+
+# 3.3 Queries de Erros / Inconsistências
 QUERY_ERRO_ENVIOS = """
 SELECT *
 FROM (
     SELECT
         *,
         CASE
-            	when tipo = 'MARKETPLACE' and nf is null then 'SEM NF ATIVA SAP'
-	            when tipo = 'MARKETPLACE' and frete_net_ajustado is null then 'SEM_FRETE_CALCULADO'
-	            when tipo = 'MARKETPLACE' and observacao_uc = 'PROBLEMA_NO_PESO' then 'PROBLEMA_NO_PESO'
-	            when tipo = 'MARKETPLACE' and observacao_uc = 'PROBLEMA_TABELA_D200' then 'PROBLEMA_TABELA_D200'
-	            when tipo = 'MARKETPLACE' and observacao_uc = 'ERRO CADASTRO' then 'ERRO CADASTRO'
-	            when tipo = 'MARKETPLACE' and observacao_uc = 'DIMENSÃO ZERADA' then 'DIMENSÃO ZERADA'
-	            when tipo = 'MARKETPLACE' then 'OK'
+            when tipo = 'MARKETPLACE' and nf is null then 'SEM NF ATIVA SAP'
+            when tipo = 'MARKETPLACE' and frete_net_ajustado is null then 'SEM_FRETE_CALCULADO'
+            when tipo = 'MARKETPLACE' and observacao_uc = 'PROBLEMA_NO_PESO' then 'PROBLEMA_NO_PESO'
+            when tipo = 'MARKETPLACE' and observacao_uc = 'PROBLEMA_TABELA_D200' then 'PROBLEMA_TABELA_D200'
+            when tipo = 'MARKETPLACE' and observacao_uc = 'ERRO CADASTRO' then 'ERRO CADASTRO'
+            when tipo = 'MARKETPLACE' and observacao_uc = 'DIMENSÃO ZERADA' then 'DIMENSÃO ZERADA'
+            when tipo = 'MARKETPLACE' then 'OK'
             WHEN frete_net_ajustado IS NULL AND observacao_uc IN ('OK', 'UC NÃO MIGRADA PARA O ECC') THEN 'SEM_FRETE_CALCULADO'
             ELSE observacao_uc
         END AS observacao_uc_ajustada,
@@ -334,6 +382,24 @@ def preparar_dados_resumo(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def preparar_dados_bp(df: pd.DataFrame) -> pd.DataFrame:
+    """Trata campos da aba BP Forecast."""
+    if 'remessas' in df.columns:
+        df['remessas'] = pd.to_numeric(df['remessas'], errors='coerce').fillna(0).astype('int64')
+
+    if 'frete' in df.columns:
+        df['frete'] = pd.to_numeric(df['frete'], errors='coerce').fillna(0.0).round(2)
+
+    for col in df.columns:
+        if col not in ['remessas', 'frete']:
+            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                df[col] = df[col].dt.strftime('%Y-%m-%d').fillna('')
+            else:
+                df[col] = df[col].fillna('').astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
+
+    return df
+
+
 def preparar_dados_erros(df: pd.DataFrame) -> pd.DataFrame:
     """Trata dados das tabelas de erros (select *) preservando números e tratando nulos."""
     colunas_inteiras_comuns = ['qtd_remessas', 'qtd_itens']
@@ -351,7 +417,6 @@ def preparar_dados_erros(df: pd.DataFrame) -> pd.DataFrame:
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].astype(str).replace({'NaT': '', 'nan': '', 'None': ''})
         else:
-            # Colunas de texto gerais
             df[col] = df[col].fillna('').astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
 
     return df
@@ -380,14 +445,12 @@ def atualizar_aba_google_sheets(sh, nome_aba, df, tamanho_lote=TAMANHO_LOTE):
     total_linhas = len(matriz_dados)
     total_colunas = len(df.columns)
 
-    # Redimensiona linhas se necessário
     linhas_atuais = worksheet.row_count
     if linhas_atuais < total_linhas:
         linhas_extras = total_linhas - linhas_atuais + 500
         print(f"[{datetime.now()}] 📐 Expandindo a aba em +{linhas_extras} linhas...")
         worksheet.add_rows(linhas_extras)
 
-    # Redimensiona colunas se necessário
     colunas_atuais = worksheet.col_count
     if colunas_atuais < total_colunas:
         colunas_extras = total_colunas - colunas_atuais + 5
@@ -427,6 +490,8 @@ def executar_automacao():
         return
 
     try:
+        sh_principal = gc.open_by_key(SHEET_RESUMO_ID)
+
         # ----------------------------------------------------
         # ETAPA 1: Processamento da Planilha Principal (RESUMO)
         # ----------------------------------------------------
@@ -435,8 +500,17 @@ def executar_automacao():
         print(f"[{datetime.now()}] ✅ Extraído Resumo: {len(df_resumo):,} linhas.")
         
         df_resumo = preparar_dados_resumo(df_resumo)
-        sh_resumo = gc.open_by_key(SHEET_RESUMO_ID)
-        atualizar_aba_google_sheets(sh_resumo, ABA_RESUMO, df_resumo)
+        atualizar_aba_google_sheets(sh_principal, ABA_RESUMO, df_resumo)
+
+        # ----------------------------------------------------
+        # ETAPA 1.2: Processamento do BP FORECAST (Aba BP)
+        # ----------------------------------------------------
+        print(f"\n[{datetime.now()}] --- Processando BP FORECAST ---")
+        df_bp = pd.read_sql(QUERY_BP_FORECAST, conexao)
+        print(f"[{datetime.now()}] ✅ Extraído BP Forecast: {len(df_bp):,} linhas.")
+
+        df_bp = preparar_dados_bp(df_bp)
+        atualizar_aba_google_sheets(sh_principal, ABA_BP, df_bp)
 
         # ----------------------------------------------------
         # ETAPA 2: Processamento das Planilhas de ERROS
