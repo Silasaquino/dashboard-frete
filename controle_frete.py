@@ -234,7 +234,7 @@ FROM (
             melhor_frete_net_s_icms AS custos,
             valorvenda,
             cidade_seller AS cidade,
-            faixa_peso,
+            'N/A' as faixa_peso,
 			separacao,
             UPPER (uf_seller) as uf,
 	        UPPER (regiao_seller) as regiao,
@@ -260,17 +260,83 @@ SELECT
     uf,
     UPPER (macroregiao) as macroregiao,
     modal,
-    faixa_peso,
-    UPPER (contrato) as contrato,
+    case
+    	faixa_peso    
+    	WHEN 'C 0 - 0.250' THEN 'C 0 - 0.250'
+		WHEN 'C 0.250 - 0.500' THEN 'C 0.250 - 0.500'
+		WHEN 'C 0.500 - 0.750' THEN 'C 0.500 - 0.750'
+		WHEN 'C 0.750 - 1' THEN 'C 0.750 - 1.00'
+		WHEN 'C 1 - 2' THEN 'C 1.00 - 2'
+		WHEN 'C 2 - 3' THEN 'C 2.00 - 3'
+		WHEN 'C 3 - 5' THEN 'C 3.00 - 5'
+		WHEN 'C 5 - 10' THEN 'C 5.00 - 10'
+		WHEN 'C 10 - +++' THEN 'C 10 - +++'
+	else faixa_peso
+    end as faixa_peso,
+	case 
+		when sheet_title IN ('COLETA_MR_BP', 'COLETA_MR_FC') then 'COLETA MR'
+        when sheet_title IN ('REVERSA_FC', 'REVERSA_BP') and contrato = 'COURRIER' then 'COLETA'
+		else UPPER (contrato) 
+	end as contrato,
     chave,
-    remessas,
-    frete,
+	CAST(REPLACE(REPLACE(remessas, '.', ''), ',', '.') AS FLOAT) as remessas,
+	CAST(REPLACE(REPLACE(frete, '.', ''), ',', '.') AS FLOAT) as frete,
     versao,
-    sheet_title
+    sheet_title,
+    case 
+    	when sheet_title IN ('ENTREGA_FC', 'ENTREGA_BP') then 'ENVIOS'
+    	when sheet_title IN ('COLETA_MR_BP', 'COLETA_MR_FC') then 'COLETA MR'
+    	when sheet_title IN ('REVERSA_FC', 'REVERSA_BP') then 'REVERSA'
+    	else sheet_title
+    end as etapa    
+FROM 
+    manual_input.envio_bp_forecast
+WHERE
+    to_date(periodo, 'dd/mm/yyyy') >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))   
+union all 
+SELECT 
+    tipo_cobranca,
+    tipo_expedicao,
+    transportador,
+    to_date(periodo, 'dd/mm/yyyy') as periodo,
+    left(to_date(periodo, 'dd/mm/yyyy'), 7) as mes_ano_periodo,
+    cidade,
+    regiao,
+    uf,
+    UPPER (macroregiao) as macroregiao,
+    modal,
+    case
+    	faixa_peso    
+    	WHEN 'C 0 - 0.250' THEN 'C 0 - 0.250'
+		WHEN 'C 0.250 - 0.500' THEN 'C 0.250 - 0.500'
+		WHEN 'C 0.500 - 0.750' THEN 'C 0.500 - 0.750'
+		WHEN 'C 0.750 - 1' THEN 'C 0.750 - 1.00'
+		WHEN 'C 1 - 2' THEN 'C 1.00 - 2'
+		WHEN 'C 2 - 3' THEN 'C 2.00 - 3'
+		WHEN 'C 3 - 5' THEN 'C 3.00 - 5'
+		WHEN 'C 5 - 10' THEN 'C 5.00 - 10'
+		WHEN 'C 10 - +++' THEN 'C 10 - +++'
+	else faixa_peso
+    end as faixa_peso,
+	case 
+		when sheet_title IN ('COLETA_MR_BP', 'COLETA_MR_FC') then 'COLETA MR'
+		when sheet_title IN ('REVERSA_FC', 'REVERSA_BP') and contrato = 'COURRIER' then 'COLETA'
+        else UPPER (contrato) 
+	end as contrato,
+    chave,
+	CAST(REPLACE(REPLACE(remessas, '.', ''), ',', '.') AS FLOAT)* 0.005 as remessas,
+	CAST(REPLACE(REPLACE(frete, '.', ''), ',', '.') AS FLOAT)* 0.005 as frete,
+    versao,
+    sheet_title,
+    case 
+    	when sheet_title IN ('ENTREGA_FC', 'ENTREGA_BP') then 'INSUCESSO'
+    	else sheet_title
+    end as etapa    
 FROM 
     manual_input.envio_bp_forecast
 WHERE
     to_date(periodo, 'dd/mm/yyyy') >= DATEADD(MONTH, -12, DATE_TRUNC('MONTH', CURRENT_DATE))
+    and sheet_title IN ('ENTREGA_FC', 'ENTREGA_BP')
 """
 
 # 3.3 Queries de Erros / Inconsistências
@@ -364,18 +430,19 @@ CONFIG_ERROS = [
 # 4. FUNÇÕES DE TRATAMENTO DE DADOS
 # ==========================================
 def preparar_dados_resumo(df: pd.DataFrame) -> pd.DataFrame:
-    """Trata campos da aba principal RESUMO."""
-    colunas_inteiras = ['qtd_remessas', 'qtd_itens']
-    for col in colunas_inteiras:
+    """Trata campos da aba principal RESUMO garantindo precisão em fracionados."""
+    colunas_quantidades = ['qtd_remessas', 'qtd_itens']
+    for col in colunas_quantidades:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('int64')
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).round(4)
 
     colunas_decimais = ['custos', 'valor_nf']
     for col in colunas_decimais:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).round(2)
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).round(4)
 
-    colunas_texto = [col for col in df.columns if col not in colunas_inteiras + colunas_decimais]
+    colunas_numericas = colunas_quantidades + colunas_decimais
+    colunas_texto = [col for col in df.columns if col not in colunas_numericas]
     for col in colunas_texto:
         df[col] = df[col].astype(str).replace({'None': '', 'nan': '', '<NaT>': ''})
 
@@ -383,12 +450,12 @@ def preparar_dados_resumo(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def preparar_dados_bp(df: pd.DataFrame) -> pd.DataFrame:
-    """Trata campos da aba BP Forecast."""
+    """Trata campos da aba BP Forecast mantendo decimais em remessas e frete."""
     if 'remessas' in df.columns:
-        df['remessas'] = pd.to_numeric(df['remessas'], errors='coerce').fillna(0).astype('int64')
+        df['remessas'] = pd.to_numeric(df['remessas'], errors='coerce').fillna(0.0).round(4)
 
     if 'frete' in df.columns:
-        df['frete'] = pd.to_numeric(df['frete'], errors='coerce').fillna(0.0).round(2)
+        df['frete'] = pd.to_numeric(df['frete'], errors='coerce').fillna(0.0).round(4)
 
     for col in df.columns:
         if col not in ['remessas', 'frete']:
@@ -401,19 +468,17 @@ def preparar_dados_bp(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def preparar_dados_erros(df: pd.DataFrame) -> pd.DataFrame:
-    """Trata dados das tabelas de erros (select *) preservando números e tratando nulos."""
-    colunas_inteiras_comuns = ['qtd_remessas', 'qtd_itens']
-    colunas_decimais_comuns = [
-        'custos', 'valor_nf', 'valorvenda', 'frete_net_ajustado', 
+    """Trata dados das tabelas de erros preservando números reais com decimais."""
+    colunas_numericas_comuns = [
+        'qtd_remessas', 'remessas', 'qtd_itens',
+        'custos', 'frete', 'valor_nf', 'valorvenda', 'frete_net_ajustado', 
         'melhor_frete_net_s_icms', 'melhor_frete_peso', 'valor_entrada_reversa'
     ]
 
     for col in df.columns:
         col_lower = col.lower()
-        if col_lower in colunas_inteiras_comuns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('int64')
-        elif col_lower in colunas_decimais_comuns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).round(2)
+        if col_lower in colunas_numericas_comuns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).round(4)
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].astype(str).replace({'NaT': '', 'nan': '', 'None': ''})
         else:

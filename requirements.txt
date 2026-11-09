@@ -12,5 +12,5 @@ plotly
 gspread
 requests
 oauth2client 
-gspread
 google-auth
+numpy
