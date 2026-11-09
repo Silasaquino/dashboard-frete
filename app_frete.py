@@ -213,17 +213,24 @@ def ler_csv_google_sheets(sheet_id, nome_aba=None, gid=None):
         conteudo = resp.read().decode("utf-8")
     return pd.read_csv(io.StringIO(conteudo), low_memory=False)
 
-@st.cache_data(ttl=1800, show_spinner="A carregar dados do Google Sheets...")
+@st.cache_data(ttl=600, show_spinner="A carregar dados do Google Sheets...")
 def carregar_dados():
+    # 1. CARREGAR RESUMO
     try:
         df_resumo = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, nome_aba="RESUMO")
     except Exception:
         df_resumo = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, gid=0)
 
-    try:
-        df_bp = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, nome_aba="BP")
-    except Exception:
-        df_bp = pd.DataFrame()
+    # 2. CARREGAR BP (tenta vários nomes comuns de aba)
+    df_bp = pd.DataFrame()
+    for nome_tentativa in ["BP", "bp", "Bp", "BASE_BP", "FORECAST", "FC"]:
+        try:
+            df_teste = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, nome_aba=nome_tentativa)
+            if not df_teste.empty and len(df_teste.columns) > 1:
+                df_bp = df_teste
+                break
+        except Exception:
+            continue
 
     def padronizar_colunas(df):
         if df.empty:
@@ -242,6 +249,15 @@ def carregar_dados():
         )
         return df
 
+    def normalizar_coluna_data(serie):
+        s = serie.astype(str).str.strip()
+        # Se vier no formato AAAA-MM
+        res = s.apply(lambda x: x[:7] if len(x) >= 7 and x[:4].isdigit() and x[4] == "-" else x)
+        # Se vier como DD/MM/AAAA ou MM/AAAA
+        res = res.apply(lambda x: f"{x.split('/')[2]}-{x.split('/')[1].zfill(2)}" if len(x.split('/')) == 3 and len(x.split('/')[2]) == 4 else x)
+        res = res.apply(lambda x: f"{x.split('/')[1]}-{x.split('/')[0].zfill(2)}" if len(x.split('/')) == 2 and len(x.split('/')[1]) == 4 else x)
+        return res
+
     df_resumo = padronizar_colunas(df_resumo)
     df_bp = padronizar_colunas(df_bp)
 
@@ -250,12 +266,7 @@ def carregar_dados():
             continue
         col_periodo = next((c for c in df.columns if any(t in c for t in ["mes_ano_filtro", "mes_ano", "periodo"])), None)
         if col_periodo:
-            df[col_periodo] = (
-                df[col_periodo]
-                .astype(str)
-                .str.strip()
-                .apply(lambda x: x[:7] if len(x) >= 7 and x[:4].isdigit() and x[4] == "-" else x)
-            )
+            df[col_periodo] = normalizar_coluna_data(df[col_periodo])
 
     if not df_resumo.empty:
         col_dup = next((c for c in df_resumo.columns if "duplicidade" in c), None)
@@ -271,7 +282,7 @@ def carregar_dados():
         if df.empty:
             continue
         for col in df.columns:
-            if any(t in col for t in ["remessa", "qtd", "frete", "custo", "valor", "total", "item", "peca"]):
+            if any(t in col for t in ["remessa", "qtd", "frete", "custo", "valor", "total", "item", "peca", "volume"]):
                 df[col] = converter_numero_vetor(df[col])
             elif df[col].dtype == object:
                 df[col] = df[col].fillna("").astype(str).str.strip().str.upper()
@@ -305,6 +316,24 @@ try:
 except Exception as e:
     st.error(f"Erro ao carregar bases: {e}")
     st.stop()
+
+# ==========================================
+# PAINEL DE DIAGNÓSTICO (AJUDA A IDENTIFICAR O BP)
+# ==========================================
+with st.expander("🛠️ Diagnóstico de Conexão com o Google Sheets (Clique para ver se o BP foi lido)", expanded=False):
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.write(f"**Aba RESUMO (Real):** {len(df_resumo_raw):,} linhas carregadas")
+        st.write("Colunas encontradas:", list(df_resumo_raw.columns[:8]))
+    with col_d2:
+        st.write(f"**Aba BP (Planejado):** {len(df_bp_raw):,} linhas carregadas")
+        if df_bp_raw.empty:
+            st.error("⚠️ Atenção: A aba 'BP' não foi encontrada ou está vazia na folha do Google Sheets! Verifique o nome exato da aba na folha.")
+        else:
+            st.write("Colunas encontradas:", list(df_bp_raw.columns[:8]))
+            col_v_teste = next((c for c in df_bp_raw.columns if "versao" in c), None)
+            if col_v_teste:
+                st.write("Versões disponíveis no BP:", list(df_bp_raw[col_v_teste].unique()[:5]))
 
 def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
     if termos_b is None:
@@ -430,9 +459,10 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             else:
                 col_alvo = next((c for c in df.columns if any(t in c for t in termos)), None)
             if col_alvo:
-                return df[df[col_alvo] == str(val).strip().upper()]
+                return df[df[col_alvo].astype(str).str.strip().str.upper() == str(val).strip().upper()]
         return df
 
+    # Filtros na base REAL
     df_r_filtrado = df_r
     df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
     df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["sheet_title", "sheet"], escolha_sheet_title, "Todos")
@@ -447,7 +477,9 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     if tipo_filtro:
         df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["tipo"], tipo_filtro)
 
-    df_b_base = aplicar_filtro_rapido(df_b_raw_local, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
+    # Filtros na base BP
+    df_b_base = df_b_raw_local
+    df_b_base = aplicar_filtro_rapido(df_b_base, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_cobranca"], escolha_cobranca, "Todos")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["transportador"], escolha_transportador, "Todos")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["contrato"], escolha_contrato, "Todos")
@@ -457,7 +489,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     if etapa_filtro:
         df_b_base = aplicar_filtro_rapido(df_b_base, ["etapa"], etapa_filtro)
     if tipo_filtro:
-        df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_expedicao"], tipo_filtro)
+        df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_expedicao", "tipo", "tipo_processo"], tipo_filtro)
 
     df_b = df_b_base
     df_b = aplicar_filtro_rapido(df_b, ["versao"], escolha_versao, "Todos")
@@ -491,6 +523,10 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     tot_rem_r = df_r_filtrado[col_rem_r].sum() if col_rem_r and not df_r_filtrado.empty else 0.0
     tot_frete_r = df_r_filtrado[col_frete_r].sum() if col_frete_r and not df_r_filtrado.empty else 0.0
     cmu_gerencial = (tot_frete_r / tot_rem_r) if tot_rem_r > 0 else 0.0
+
+    # Aviso se o BP ficou zerado
+    if tot_rem_b == 0 and not df_bp_raw.empty:
+        st.warning(f"⚠️ Atenção: Nenhuma linha do BP atendeu aos filtros selecionados (Período: {escolha_periodo}, Versão: {escolha_versao}, Aba: {titulo}).")
 
     def padronizar_chave_valor(val, tipo):
         s = str(val)
@@ -984,7 +1020,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
         df_bp_p["cmu_bp"] = np.where(df_bp_p["rem_bp"] > 0, df_bp_p["frete_bp"] / df_bp_p["rem_bp"], 0.0)
 
         df_fc_p = df_b_fc.groupby(col_peso_b, as_index=False).agg(frete_fc=(col_frete_b, "sum"), rem_fc=(col_rem_b, "sum"))
-        df_fc_p["cmu_fc"] = np.where(df_fc_p["rem_fc"] > 0, df_fc_p["frete_fc"] / df_fc_p["rem_fc"], 0.0)
+        df_fc_p["cmu_fc"] = np.where(df_fc_p["rem_fc"] > 0, df_fc_p["frete_fc"] / df_fc_pr["rem_fc"], 0.0)
 
         m_p = pd.merge(df_r_p, df_bp_p, left_on=col_peso_r, right_on=col_peso_b, how="outer")
         m_p = pd.merge(m_p, df_fc_p, left_on=col_peso_r, right_on=col_peso_b, how="outer").fillna(0.0)
