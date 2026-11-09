@@ -8,51 +8,148 @@ import urllib.request
 import io
 import re
 
-st.set_page_config(page_title="Impactos CMU - Milk Run", layout="wide")
+st.set_page_config(page_title="ACOMPANHAMENTO CONTROLE DE FRETE", layout="wide")
 
-st.markdown("""
-<style>
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        border-bottom: 1px solid #333333;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        white-space: pre-wrap;
-        background-color: transparent;
-        border-radius: 4px 4px 0px 0px;
-        color: #7a828e;
-        font-size: 14px;
-        font-weight: 600;
-        padding-left: 16px;
-        padding-right: 16px;
-    }
-    .stTabs [aria-selected="true"] {
-        color: #FF4B4B !important;
-        border-bottom: 2px solid #FF4B4B !important;
-        background-color: transparent !important;
-    }
-    .botao-erro div.stDownloadButton > button {
-        background-color: #E53935 !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        border-radius: 12px !important;
-        border: none !important;
-        height: 52px !important;
-        width: 100% !important;
-        font-size: 15px !important;
-        transition: 0.3s !important;
-        box-shadow: 0px 4px 10px rgba(229, 57, 53, 0.3) !important;
-    }
-    .botao-erro div.stDownloadButton > button:hover {
-        background-color: #C62828 !important;
-        color: #ffffff !important;
-        border: none !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+# ==========================================
+# 1. CONTROLE DE TEMA NO TOPO (PADRÃO ESCURO)
+# ==========================================
+col_espaco_esq, col_titulo_topo, col_tema_topo = st.columns([1.5, 5, 1.5])
 
-# IDs das Planilhas no Google Sheets
+with col_titulo_topo:
+    st.markdown(
+        "<h2 style='text-align: center; margin: 0; padding-top: 6px; font-weight: 900; letter-spacing: 1px;'>ACOMPANHAMENTO CONTROLE DE FRETE</h2>",
+        unsafe_allow_html=True
+    )
+
+with col_tema_topo:
+    st.markdown("<span style='font-size: 12px; font-weight: 800; color: #9CA3AF; letter-spacing: 1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
+    tema_selecionado = st.selectbox(
+        "Tema da Tela",
+        ["Escuro 🌙", "Claro ☀️"],
+        index=0,
+        label_visibility="collapsed"
+    )
+
+# ==========================================
+# 2. ESTILOS CSS CONFORME O TEMA SELECIONADO
+# ==========================================
+if tema_selecionado == "Escuro 🌙":
+    template_plotly = "plotly_dark"
+    cor_texto = "#FFFFFF"
+    cor_fundo_app = "#0B0F19"
+    cor_fundo_sidebar = "#111827"
+    cor_borda = "#1F2937"
+    cor_subtexto = "#94A3B8"
+    st.markdown(f"""
+    <style>
+        header[data-testid="stHeader"] {{ background-color: {cor_fundo_app} !important; }}
+        .stApp {{ background-color: {cor_fundo_app} !important; color: {cor_texto} !important; }}
+        [data-testid="stSidebar"] {{
+            background-color: {cor_fundo_sidebar} !important;
+            border-right: 1px solid {cor_borda} !important;
+        }}
+        [data-testid="stSidebar"] * {{
+            color: #F3F4F6 !important;
+            font-weight: 600 !important;
+        }}
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 12px;
+            border-bottom: 1px solid #333333;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 48px;
+            white-space: pre-wrap;
+            background-color: transparent;
+            border-radius: 4px 4px 0px 0px;
+            color: #7a828e;
+            font-size: 14px;
+            font-weight: 600;
+            padding-left: 16px;
+            padding-right: 16px;
+        }}
+        .stTabs [aria-selected="true"] {{
+            color: #FF4B4B !important;
+            border-bottom: 2px solid #FF4B4B !important;
+            background-color: transparent !important;
+        }}
+        .botao-erro div.stDownloadButton > button {{
+            background-color: #E53935 !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            border-radius: 12px !important;
+            border: none !important;
+            height: 52px !important;
+            width: 100% !important;
+            font-size: 15px !important;
+            transition: 0.3s !important;
+            box-shadow: 0px 4px 10px rgba(229, 57, 53, 0.3) !important;
+        }}
+        .botao-erro div.stDownloadButton > button:hover {{
+            background-color: #C62828 !important;
+            color: #ffffff !important;
+            border: none !important;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    template_plotly = "plotly_white"
+    cor_texto = "#0F172A"
+    cor_fundo_app = "#FFFFFF"
+    cor_fundo_sidebar = "#F8FAFC"
+    cor_borda = "#E2E8F0"
+    cor_subtexto = "#475569"
+    st.markdown(f"""
+    <style>
+        header[data-testid="stHeader"] {{ background-color: {cor_fundo_app} !important; }}
+        .stApp {{ background-color: {cor_fundo_app} !important; color: {cor_texto} !important; }}
+        [data-testid="stSidebar"] {{
+            background-color: {cor_fundo_sidebar} !important;
+            border-right: 1px solid {cor_borda} !important;
+        }}
+        [data-testid="stSidebar"] * {{
+            color: {cor_texto} !important;
+            font-weight: 600 !important;
+        }}
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 12px;
+            border-bottom: 1px solid #E2E8F0;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 48px;
+            white-space: pre-wrap;
+            background-color: transparent;
+            border-radius: 4px 4px 0px 0px;
+            color: #64748B;
+            font-size: 14px;
+            font-weight: 600;
+            padding-left: 16px;
+            padding-right: 16px;
+        }}
+        .stTabs [aria-selected="true"] {{
+            color: #2563EB !important;
+            border-bottom: 2px solid #2563EB !important;
+            background-color: transparent !important;
+        }}
+        .botao-erro div.stDownloadButton > button {{
+            background-color: #2563EB !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            border-radius: 12px !important;
+            border: none !important;
+            height: 52px !important;
+            width: 100% !important;
+            font-size: 15px !important;
+            transition: 0.3s !important;
+        }}
+        .botao-erro div.stDownloadButton > button:hover {{
+            background-color: #1D4ED8 !important;
+            color: #ffffff !important;
+            border: none !important;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# IDs das Folhas no Google Sheets
 SHEET_ID_PRINCIPAL = "1i08DkGeUZQk0agkSb1ruLLEiOuUMST0XjHkosgaFN0I"
 SHEET_ID_ERROS_ENVIOS = "1pwor7F7X1IX11BZBxTzrHkmZRlnyetfXOoLQCceQ_qQ"
 SHEET_ID_ERROS_COLETA = "1Rn-aTD8ZWMNR5AKQT53jsdLbCXG-6p7ew5eWgIuzvgg"
@@ -223,16 +320,23 @@ def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
         col_r = next((c for c in df_resumo_raw.columns if any(t in c for t in termos_r)), None)
         col_b = next((c for c in df_bp_raw.columns if any(t in c for t in termos_b)), None)
 
-    if col_r:
-        vals_r = df_resumo_raw[col_r].unique()
-        valores.update([v for v in vals_r if v not in lixo and not v.startswith("=")])
+    if col_r and not df_resumo_raw.empty:
+        vals_r = df_resumo_raw[col_r].dropna().unique()
+        for v in vals_r:
+            v_str = str(v).strip()
+            if v_str.upper() not in lixo and not v_str.startswith("="):
+                valores.add(v_str)
 
-    if col_b:
-        vals_b = df_bp_raw[col_b].unique()
-        valores.update([v for v in vals_b if v not in lixo and not v.startswith("=")])
+    if col_b and not df_bp_raw.empty:
+        vals_b = df_bp_raw[col_b].dropna().unique()
+        for v in vals_b:
+            v_str = str(v).strip()
+            if v_str.upper() not in lixo and not v_str.startswith("="):
+                valores.add(v_str)
 
     return [padrao] + sorted(list(valores))
 
+# --- BARRA LATERAL ---
 st.sidebar.title("🚚 Filtros Gerais")
 
 opcoes_periodo = extrair_opcoes(["mes_ano_filtro", "mes_ano", "periodo"], padrao="Geral (Todos)")
@@ -477,6 +581,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     ))
 
     fig.update_layout(
+        template=template_plotly,
         title=dict(text=f"Impactos CMU - {titulo}", y=0.98),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -598,6 +703,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 marker_color="#2196F3"
             ))
             fig_cmu.update_layout(
+                template=template_plotly,
                 title=dict(text="Transportador - CMU Real", y=0.98),
                 xaxis_title="Transportador",
                 yaxis_title="CMU (Personalizado)",
@@ -629,6 +735,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 marker_color="#7B1FA2"
             ))
             fig_var.update_layout(
+                template=template_plotly,
                 title=dict(text="Transportador - Variação CMU", y=0.98),
                 barmode="group",
                 xaxis_title="Transportador",
@@ -696,6 +803,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                     marker_color="#2196F3"
                 ))
                 fig_cmu_pr.update_layout(
+                    template=template_plotly,
                     title=dict(text="Praça de coleta", y=0.98),
                     xaxis_title="Praça de coleta",
                     yaxis_title="CMU (Personalizado)",
@@ -727,6 +835,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                     marker_color="#7B1FA2"
                 ))
                 fig_var_pr.update_layout(
+                    template=template_plotly,
                     title=dict(text="Praça de coleta", y=0.98),
                     barmode="group",
                     xaxis_title="Praça de coleta",
@@ -760,7 +869,8 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                     values="frete_real",
                     hole=0.6,
                     title="Contrato (Tamanho: frete_realizado)",
-                    color_discrete_sequence=["#00A4EF", "#FFB900", "#7FBA00", "#F25022"]
+                    color_discrete_sequence=["#00A4EF", "#FFB900", "#7FBA00", "#F25022"],
+                    template=template_plotly
                 )
                 fig_donut_con.update_traces(
                     textposition='inside',
@@ -796,6 +906,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 fig_bar_con.add_trace(go.Bar(x=m_con["chave"], y=m_con["cmu_bp"], name="CMU BP", marker_color="#FFB900", text=[formatar_moeda(v, 2) if v > 0 else "" for v in m_con["cmu_bp"]], textposition="outside"))
                 fig_bar_con.add_trace(go.Bar(x=m_con["chave"], y=m_con["cmu_fc"], name="CMU FC", marker_color="#80397B", text=[formatar_moeda(v, 2) if v > 0 else "" for v in m_con["cmu_fc"]], textposition="outside"))
                 fig_bar_con.update_layout(
+                    template=template_plotly,
                     title=dict(text="Contrato - CMU vs BP e FC", y=0.98),
                     barmode="group",
                     height=420,
@@ -814,6 +925,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 fig_var_con.add_trace(go.Bar(x=m_con["chave"], y=m_con["vs_bp_pct"].fillna(0), name="vs BP (%)", marker_color="#FFB900", text=[f"{v:.2f}%" if pd.notnull(v) and v != 0 else "" for v in m_con["vs_bp_pct"]], textposition="outside"))
                 fig_var_con.add_trace(go.Bar(x=m_con["chave"], y=m_con["vs_fc_pct"].fillna(0), name="vs FC (%)", marker_color="#80397B", text=[f"{v:.2f}%" if pd.notnull(v) and v != 0 else "" for v in m_con["vs_fc_pct"]], textposition="outside"))
                 fig_var_con.update_layout(
+                    template=template_plotly,
                     title=dict(text="Contrato - Variação %", y=0.98),
                     barmode="group",
                     height=420,
@@ -858,6 +970,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             )
             fig_p = go.Figure(fig_donut_p)
             fig_p.update_layout(
+                template=template_plotly,
                 title=dict(text="Faixa de peso (Tamanho: frete_realizado)", y=0.98),
                 height=420,
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -913,6 +1026,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 textfont=dict(size=10)
             ))
             fig_bar_p.update_layout(
+                template=template_plotly,
                 title=dict(text="Faixa de peso - CMU vs BP e FC", y=0.98),
                 barmode="group",
                 height=420,
@@ -947,6 +1061,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 marker_color="#80397B"
             ))
             fig_var_p.update_layout(
+                template=template_plotly,
                 title=dict(text="Faixa de peso - Variação %", y=0.98),
                 barmode="group",
                 height=420,
@@ -954,7 +1069,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 paper_bgcolor="rgba(0,0,0,0)",
                 margin=dict(l=10, r=10, t=80, b=10),
                 yaxis=dict(ticksuffix="%", showgrid=False, zeroline=False),
-                xaxis=dict(showgrid=False),
+                xaxis=dict(tickangle=-30, showgrid=False),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
             )
             st.plotly_chart(fig_var_p, use_container_width=True, key=f"var_p_{slug_id}")
@@ -1011,7 +1126,8 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             color="cmu_real",
             color_continuous_scale=escala_azul_modelo,
             text=[formatar_moeda(v, 2) if v > 0 else "" for v in df_ord1["cmu_real"]],
-            title="CMU por estado"
+            title="CMU por estado",
+            template=template_plotly
         )
         fig_geo1.update_traces(textposition="outside", textfont=dict(size=11))
         fig_geo1.update_layout(
@@ -1036,7 +1152,8 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             color_continuous_scale=escala_semaforo_modelo,
             range_color=[-10.0, 10.0],
             text=[f"{v:.1f}%" if v != 0 else "" for v in df_ord2["vs_bp_pct"]],
-            title="CMU vs CMU BP (%)"
+            title="CMU vs CMU BP (%)",
+            template=template_plotly
         )
         fig_geo2.update_traces(textposition="outside", textfont=dict(size=11))
         fig_geo2.update_layout(
@@ -1061,7 +1178,8 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             color_continuous_scale=escala_semaforo_modelo,
             range_color=[-10.0, 10.0],
             text=[f"{v:.1f}%" if v != 0 else "" for v in df_ord3["vs_fc_pct"]],
-            title="CMU vs CMU FC (%)"
+            title="CMU vs CMU FC (%)",
+            template=template_plotly
         )
         fig_geo3.update_traces(textposition="outside", textfont=dict(size=11))
         fig_geo3.update_layout(
@@ -1120,10 +1238,11 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 marker=dict(size=8, color="#00A4EF"),
                 text=[f"{v:.2f}" for v in df_serie["itens_por_remessa"]],
                 textposition="top center",
-                textfont=dict(size=12, color="#ffffff")
+                textfont=dict(size=12, color="#ffffff" if tema_selecionado == "Escuro 🌙" else "#0F172A")
             ))
 
             fig_hist.update_layout(
+                template=template_plotly,
                 title=dict(text=f"Evolução Temporal: Itens por Remessa - {titulo} (Período Completo da Base)", y=0.98),
                 xaxis_title="Período (mes_ano_filtro)",
                 yaxis_title="Itens / Remessa",
@@ -1140,6 +1259,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             )
             st.plotly_chart(fig_hist, use_container_width=True, key=f"serie_itens_rem_{slug_id}")
 
+# --- CONTROLO RÁPIDO DE ABAS ---
 lista_modulos = [
     "📊 Geral",
     "🛍️ ENVIOS RETAIL",
