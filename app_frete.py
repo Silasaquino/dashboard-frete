@@ -164,13 +164,10 @@ NOMES_UFS = {
 }
 
 def converter_numero_vetor(serie):
-    # Se já for numérico (float/int), retorna direto sem alterar os pontos decimais
     if pd.api.types.is_numeric_dtype(serie):
         return serie.fillna(0.0)
 
     s = serie.astype(str).str.replace("R$", "", regex=False).str.strip()
-
-    # Se contiver vírgula (formato brasileiro R$ 1.234,56), remove pontos de milhar e troca vírgula por ponto
     tem_virgula = s.str.contains(",", regex=False).any()
     if tem_virgula:
         s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
@@ -282,11 +279,11 @@ def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
 
     if col_r:
         vals_r = df_resumo_raw[col_r].unique()
-        valores.update([str(v).strip() for v in vals_r if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
+        valores.update([str(v).strip().upper() for v in vals_r if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
 
     if col_b:
         vals_b = df_bp_raw[col_b].unique()
-        valores.update([str(v).strip() for v in vals_b if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
+        valores.update([str(v).strip().upper() for v in vals_b if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
 
     return [padrao] + sorted(list(valores))
 
@@ -378,13 +375,13 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
         label_planejado = "BP"
 
     def aplicar_filtro_rapido(df, termos, val, padrao="Todos", exato=False):
-        if val != padrao and not df.empty:
+        if str(val).strip().upper() != padrao.upper() and not df.empty:
             if exato:
                 col_alvo = next((c for c in df.columns if c in termos), None)
             else:
                 col_alvo = next((c for c in df.columns if any(t in c for t in termos)), None)
             if col_alvo:
-                return df[df[col_alvo] == str(val).strip().upper()]
+                return df[df[col_alvo].astype(str).str.strip().str.upper() == str(val).strip().upper()]
         return df
 
     # Base filtrada para a visão principal (inclui os filtros da barra lateral)
@@ -423,11 +420,11 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     col_versao_b = next((c for c in df_b_base.columns if "versao" in c), None)
 
     if col_sheet_b:
-        mask_is_bp = df_b_base[col_sheet_b].str.endswith("BP")
-        mask_is_fc = df_b_base[col_sheet_b].str.endswith("FC")
+        mask_is_bp = df_b_base[col_sheet_b].astype(str).str.strip().str.upper().str.endswith("BP")
+        mask_is_fc = df_b_base[col_sheet_b].astype(str).str.strip().str.upper().str.endswith("FC")
     elif col_versao_b:
-        mask_is_bp = df_b_base[col_versao_b].str.contains("BP")
-        mask_is_fc = df_b_base[col_versao_b].str.contains("FC|FORECAST|8+4")
+        mask_is_bp = df_b_base[col_versao_b].astype(str).str.strip().str.upper().str.contains("BP")
+        mask_is_fc = df_b_base[col_versao_b].astype(str).str.strip().str.upper().str.contains("FC|FORECAST|8+4")
     else:
         mask_is_bp = pd.Series(True, index=df_b_base.index)
         mask_is_fc = pd.Series(True, index=df_b_base.index)
@@ -448,7 +445,6 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     tot_frete_b = df_b[col_frete_b].sum() if col_frete_b and not df_b.empty else 0.0
     cmu_forecast = (tot_frete_b / tot_rem_b) if tot_rem_b > 0 else 0.0
 
-    # Realiza a soma de qtd_remessas na base Real
     tot_rem_r = df_r_filtrado[col_rem_r].sum() if col_rem_r and not df_r_filtrado.empty else 0.0
     tot_frete_r = df_r_filtrado[col_frete_r].sum() if col_frete_r and not df_r_filtrado.empty else 0.0
     cmu_gerencial = (tot_frete_r / tot_rem_r) if tot_rem_r > 0 else 0.0
@@ -1023,7 +1019,6 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 name="vs FC (%)",
                 text=[f"{v:.2f}%" if pd.notnull(v) and v != 0 else "" for v in m_p["vs_fc_pct"]],
                 textposition="outside",
-                textfont=dict(size=10),
                 marker_color="#80397B"
             ))
             fig_var_p.update_layout(
