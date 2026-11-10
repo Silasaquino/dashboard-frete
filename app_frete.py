@@ -11,17 +11,17 @@ import re
 st.set_page_config(page_title="ACOMPANHAMENTO CONTROLE DE FRETE", layout="wide")
 
 # ==========================================
-# 1. CONTROLE DE TEMA NO TOPO (PADRÃO ESCURO)
+# 1. TÍTULO CENTRALIZADO E ESCOLHA DO TEMA (PADRÃO ESCURO)
 # ==========================================
-col_espaco_esq, col_titulo_topo, col_tema_topo = st.columns([1.5, 5, 1.5])
+col_esq, col_tit, col_tem = st.columns([1.5, 5, 1.5])
 
-with col_titulo_topo:
+with col_tit:
     st.markdown(
         "<h2 style='text-align: center; margin: 0; padding-top: 6px; font-weight: 900; letter-spacing: 1px;'>ACOMPANHAMENTO CONTROLE DE FRETE</h2>",
         unsafe_allow_html=True
     )
 
-with col_tema_topo:
+with col_tem:
     st.markdown("<span style='font-size: 12px; font-weight: 800; color: #9CA3AF; letter-spacing: 1px;'>TEMA DA TELA</span>", unsafe_allow_html=True)
     tema_selecionado = st.selectbox(
         "Tema da Tela",
@@ -30,33 +30,25 @@ with col_tema_topo:
         label_visibility="collapsed"
     )
 
-# ==========================================
-# 2. ESTILOS CSS CONFORME O TEMA SELECIONADO
-# ==========================================
 if tema_selecionado == "Escuro 🌙":
     template_plotly = "plotly_dark"
-    cor_texto = "#FFFFFF"
-    cor_fundo_app = "#0B0F19"
-    cor_fundo_sidebar = "#111827"
-    cor_borda = "#1F2937"
-    cor_subtexto = "#94A3B8"
-    st.markdown(f"""
+    st.markdown("""
     <style>
-        header[data-testid="stHeader"] {{ background-color: {cor_fundo_app} !important; }}
-        .stApp {{ background-color: {cor_fundo_app} !important; color: {cor_texto} !important; }}
-        [data-testid="stSidebar"] {{
-            background-color: {cor_fundo_sidebar} !important;
-            border-right: 1px solid {cor_borda} !important;
-        }}
-        [data-testid="stSidebar"] * {{
+        header[data-testid="stHeader"] { background-color: #0B0F19 !important; }
+        .stApp { background-color: #0B0F19 !important; color: #FFFFFF !important; }
+        [data-testid="stSidebar"] {
+            background-color: #111827 !important;
+            border-right: 1px solid #1F2937 !important;
+        }
+        [data-testid="stSidebar"] * {
             color: #F3F4F6 !important;
             font-weight: 600 !important;
-        }}
-        .stTabs [data-baseweb="tab-list"] {{
+        }
+        .stTabs [data-baseweb="tab-list"] {
             gap: 12px;
             border-bottom: 1px solid #333333;
-        }}
-        .stTabs [data-baseweb="tab"] {{
+        }
+        .stTabs [data-baseweb="tab"] {
             height: 48px;
             white-space: pre-wrap;
             background-color: transparent;
@@ -66,13 +58,13 @@ if tema_selecionado == "Escuro 🌙":
             font-weight: 600;
             padding-left: 16px;
             padding-right: 16px;
-        }}
-        .stTabs [aria-selected="true"] {{
+        }
+        .stTabs [aria-selected="true"] {
             color: #FF4B4B !important;
             border-bottom: 2px solid #FF4B4B !important;
             background-color: transparent !important;
-        }}
-        .botao-erro div.stDownloadButton > button {{
+        }
+        .botao-erro div.stDownloadButton > button {
             background-color: #E53935 !important;
             color: #ffffff !important;
             font-weight: 700 !important;
@@ -83,38 +75,33 @@ if tema_selecionado == "Escuro 🌙":
             font-size: 15px !important;
             transition: 0.3s !important;
             box-shadow: 0px 4px 10px rgba(229, 57, 53, 0.3) !important;
-        }}
-        .botao-erro div.stDownloadButton > button:hover {{
+        }
+        .botao-erro div.stDownloadButton > button:hover {
             background-color: #C62828 !important;
             color: #ffffff !important;
             border: none !important;
-        }}
+        }
     </style>
     """, unsafe_allow_html=True)
 else:
     template_plotly = "plotly_white"
-    cor_texto = "#0F172A"
-    cor_fundo_app = "#FFFFFF"
-    cor_fundo_sidebar = "#F8FAFC"
-    cor_borda = "#E2E8F0"
-    cor_subtexto = "#475569"
-    st.markdown(f"""
+    st.markdown("""
     <style>
-        header[data-testid="stHeader"] {{ background-color: {cor_fundo_app} !important; }}
-        .stApp {{ background-color: {cor_fundo_app} !important; color: {cor_texto} !important; }}
-        [data-testid="stSidebar"] {{
-            background-color: {cor_fundo_sidebar} !important;
-            border-right: 1px solid {cor_borda} !important;
-        }}
-        [data-testid="stSidebar"] * {{
-            color: {cor_texto} !important;
+        header[data-testid="stHeader"] { background-color: #FFFFFF !important; }
+        .stApp { background-color: #FFFFFF !important; color: #0F172A !important; }
+        [data-testid="stSidebar"] {
+            background-color: #F8FAFC !important;
+            border-right: 1px solid #E2E8F0 !important;
+        }
+        [data-testid="stSidebar"] * {
+            color: #0F172A !important;
             font-weight: 600 !important;
-        }}
-        .stTabs [data-baseweb="tab-list"] {{
+        }
+        .stTabs [data-baseweb="tab-list"] {
             gap: 12px;
             border-bottom: 1px solid #E2E8F0;
-        }}
-        .stTabs [data-baseweb="tab"] {{
+        }
+        .stTabs [data-baseweb="tab"] {
             height: 48px;
             white-space: pre-wrap;
             background-color: transparent;
@@ -124,13 +111,13 @@ else:
             font-weight: 600;
             padding-left: 16px;
             padding-right: 16px;
-        }}
-        .stTabs [aria-selected="true"] {{
+        }
+        .stTabs [aria-selected="true"] {
             color: #2563EB !important;
             border-bottom: 2px solid #2563EB !important;
             background-color: transparent !important;
-        }}
-        .botao-erro div.stDownloadButton > button {{
+        }
+        .botao-erro div.stDownloadButton > button {
             background-color: #2563EB !important;
             color: #ffffff !important;
             font-weight: 700 !important;
@@ -140,12 +127,12 @@ else:
             width: 100% !important;
             font-size: 15px !important;
             transition: 0.3s !important;
-        }}
-        .botao-erro div.stDownloadButton > button:hover {{
+        }
+        .botao-erro div.stDownloadButton > button:hover {
             background-color: #1D4ED8 !important;
             color: #ffffff !important;
             border: none !important;
-        }}
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -177,15 +164,18 @@ NOMES_UFS = {
 }
 
 def converter_numero_vetor(serie):
-    return (
-        serie.astype(str)
-        .str.replace("R$", "", regex=False)
-        .str.replace(" ", "", regex=False)
-        .str.replace(".", "", regex=False)
-        .str.replace(",", ".", regex=False)
-        .pipe(pd.to_numeric, errors="coerce")
-        .fillna(0.0)
-    )
+    # Se já for numérico (float/int), retorna direto sem alterar os pontos decimais
+    if pd.api.types.is_numeric_dtype(serie):
+        return serie.fillna(0.0)
+
+    s = serie.astype(str).str.replace("R$", "", regex=False).str.strip()
+
+    # Se contiver vírgula (formato brasileiro R$ 1.234,56), remove pontos de milhar e troca vírgula por ponto
+    tem_virgula = s.str.contains(",", regex=False).any()
+    if tem_virgula:
+        s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+    
+    return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
 def normalizar_uf_texto(val):
     s = str(val).strip().upper()
@@ -196,45 +186,18 @@ def normalizar_uf_texto(val):
             return pedaco
     return None
 
-def ler_csv_google_sheets(sheet_id, nome_aba=None, gid=None):
-    if nome_aba:
-        nome_encoded = urllib.parse.quote(nome_aba)
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nome_encoded}"
-    elif gid is not None:
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-    else:
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-    
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    )
+def ler_aba_csv(sheet_id, nome_aba):
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={urllib.parse.quote(nome_aba)}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req) as resp:
-        conteudo = resp.read().decode("utf-8")
-    return pd.read_csv(io.StringIO(conteudo), low_memory=False)
+        return pd.read_csv(io.StringIO(resp.read().decode("utf-8")), low_memory=False)
 
-@st.cache_data(ttl=600, show_spinner="A carregar dados do Google Sheets...")
+@st.cache_data(ttl=3600, show_spinner="Otimizando e indexando bases de frete...")
 def carregar_dados():
-    # 1. CARREGAR RESUMO
-    try:
-        df_resumo = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, nome_aba="RESUMO")
-    except Exception:
-        df_resumo = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, gid=0)
-
-    # 2. CARREGAR BP (tenta vários nomes comuns de aba)
-    df_bp = pd.DataFrame()
-    for nome_tentativa in ["BP", "bp", "Bp", "BASE_BP", "FORECAST", "FC"]:
-        try:
-            df_teste = ler_csv_google_sheets(SHEET_ID_PRINCIPAL, nome_aba=nome_tentativa)
-            if not df_teste.empty and len(df_teste.columns) > 1:
-                df_bp = df_teste
-                break
-        except Exception:
-            continue
-
+    df_resumo = ler_aba_csv(SHEET_ID_PRINCIPAL, "RESUMO")
+    df_bp = ler_aba_csv(SHEET_ID_PRINCIPAL, "BP")
+    
     def padronizar_colunas(df):
-        if df.empty:
-            return df
         df.columns = (
             df.columns.astype(str)
             .str.strip()
@@ -249,24 +212,18 @@ def carregar_dados():
         )
         return df
 
-    def normalizar_coluna_data(serie):
-        s = serie.astype(str).str.strip()
-        # Se vier no formato AAAA-MM
-        res = s.apply(lambda x: x[:7] if len(x) >= 7 and x[:4].isdigit() and x[4] == "-" else x)
-        # Se vier como DD/MM/AAAA ou MM/AAAA
-        res = res.apply(lambda x: f"{x.split('/')[2]}-{x.split('/')[1].zfill(2)}" if len(x.split('/')) == 3 and len(x.split('/')[2]) == 4 else x)
-        res = res.apply(lambda x: f"{x.split('/')[1]}-{x.split('/')[0].zfill(2)}" if len(x.split('/')) == 2 and len(x.split('/')[1]) == 4 else x)
-        return res
-
     df_resumo = padronizar_colunas(df_resumo)
     df_bp = padronizar_colunas(df_bp)
 
     for df in [df_resumo, df_bp]:
-        if df.empty:
-            continue
         col_periodo = next((c for c in df.columns if any(t in c for t in ["mes_ano_filtro", "mes_ano", "periodo"])), None)
         if col_periodo:
-            df[col_periodo] = normalizar_coluna_data(df[col_periodo])
+            df[col_periodo] = (
+                df[col_periodo]
+                .astype(str)
+                .str.strip()
+                .apply(lambda x: x[:7] if len(x) >= 7 and x[:4].isdigit() and x[4] == "-" else x)
+            )
 
     if not df_resumo.empty:
         col_dup = next((c for c in df_resumo.columns if "duplicidade" in c), None)
@@ -279,10 +236,8 @@ def carregar_dados():
             df_resumo = df_resumo[df_resumo[col_obs].astype(str).str.strip().str.upper().isin(valores_ok)]
 
     for df in [df_resumo, df_bp]:
-        if df.empty:
-            continue
         for col in df.columns:
-            if any(t in col for t in ["remessa", "qtd", "frete", "custo", "valor", "total", "item", "peca", "volume"]):
+            if any(t in col for t in ["remessa", "qtd", "frete", "custo", "valor", "total", "item", "peca"]):
                 df[col] = converter_numero_vetor(df[col])
             elif df[col].dtype == object:
                 df[col] = df[col].fillna("").astype(str).str.strip().str.upper()
@@ -300,14 +255,8 @@ def carregar_dados():
 @st.cache_data(ttl=1800, show_spinner=False)
 def carregar_csv_erros_sob_demanda(sheet_id):
     try:
-        try:
-            df = ler_csv_google_sheets(sheet_id, nome_aba="ERRO")
-        except Exception:
-            try:
-                df = ler_csv_google_sheets(sheet_id, nome_aba="erro")
-            except Exception:
-                df = ler_csv_google_sheets(sheet_id, gid=0)
-        return df.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+        df = ler_aba_csv(sheet_id, "erro")
+        return df.to_csv(index=False, sep=";").encode("utf-8-sig")
     except Exception:
         return b""
 
@@ -316,24 +265,6 @@ try:
 except Exception as e:
     st.error(f"Erro ao carregar bases: {e}")
     st.stop()
-
-# ==========================================
-# PAINEL DE DIAGNÓSTICO (AJUDA A IDENTIFICAR O BP)
-# ==========================================
-with st.expander("🛠️ Diagnóstico de Conexão com o Google Sheets (Clique para ver se o BP foi lido)", expanded=False):
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        st.write(f"**Aba RESUMO (Real):** {len(df_resumo_raw):,} linhas carregadas")
-        st.write("Colunas encontradas:", list(df_resumo_raw.columns[:8]))
-    with col_d2:
-        st.write(f"**Aba BP (Planejado):** {len(df_bp_raw):,} linhas carregadas")
-        if df_bp_raw.empty:
-            st.error("⚠️ Atenção: A aba 'BP' não foi encontrada ou está vazia na folha do Google Sheets! Verifique o nome exato da aba na folha.")
-        else:
-            st.write("Colunas encontradas:", list(df_bp_raw.columns[:8]))
-            col_v_teste = next((c for c in df_bp_raw.columns if "versao" in c), None)
-            if col_v_teste:
-                st.write("Versões disponíveis no BP:", list(df_bp_raw[col_v_teste].unique()[:5]))
 
 def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
     if termos_b is None:
@@ -349,23 +280,17 @@ def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
         col_r = next((c for c in df_resumo_raw.columns if any(t in c for t in termos_r)), None)
         col_b = next((c for c in df_bp_raw.columns if any(t in c for t in termos_b)), None)
 
-    if col_r and not df_resumo_raw.empty:
-        vals_r = df_resumo_raw[col_r].dropna().unique()
-        for v in vals_r:
-            v_str = str(v).strip()
-            if v_str.upper() not in lixo and not v_str.startswith("="):
-                valores.add(v_str)
+    if col_r:
+        vals_r = df_resumo_raw[col_r].unique()
+        valores.update([str(v).strip() for v in vals_r if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
 
-    if col_b and not df_bp_raw.empty:
-        vals_b = df_bp_raw[col_b].dropna().unique()
-        for v in vals_b:
-            v_str = str(v).strip()
-            if v_str.upper() not in lixo and not v_str.startswith("="):
-                valores.add(v_str)
+    if col_b:
+        vals_b = df_bp_raw[col_b].unique()
+        valores.update([str(v).strip() for v in vals_b if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
 
     return [padrao] + sorted(list(valores))
 
-# --- BARRA LATERAL ---
+# --- BARRA LATERAL: INICIALIZADA LIMPA EM "TODOS" / "GERAL (TODOS)" ---
 st.sidebar.title("🚚 Filtros Gerais")
 
 opcoes_periodo = extrair_opcoes(["mes_ano_filtro", "mes_ano", "periodo"], padrao="Geral (Todos)")
@@ -459,10 +384,10 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             else:
                 col_alvo = next((c for c in df.columns if any(t in c for t in termos)), None)
             if col_alvo:
-                return df[df[col_alvo].astype(str).str.strip().str.upper() == str(val).strip().upper()]
+                return df[df[col_alvo] == str(val).strip().upper()]
         return df
 
-    # Filtros na base REAL
+    # Base filtrada para a visão principal (inclui os filtros da barra lateral)
     df_r_filtrado = df_r
     df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
     df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["sheet_title", "sheet"], escolha_sheet_title, "Todos")
@@ -477,9 +402,8 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     if tipo_filtro:
         df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["tipo"], tipo_filtro)
 
-    # Filtros na base BP
-    df_b_base = df_b_raw_local
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
+    # Filtros Comuns em BP
+    df_b_base = aplicar_filtro_rapido(df_b_raw_local, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_cobranca"], escolha_cobranca, "Todos")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["transportador"], escolha_transportador, "Todos")
     df_b_base = aplicar_filtro_rapido(df_b_base, ["contrato"], escolha_contrato, "Todos")
@@ -489,7 +413,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     if etapa_filtro:
         df_b_base = aplicar_filtro_rapido(df_b_base, ["etapa"], etapa_filtro)
     if tipo_filtro:
-        df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_expedicao", "tipo", "tipo_processo"], tipo_filtro)
+        df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_expedicao"], tipo_filtro)
 
     df_b = df_b_base
     df_b = aplicar_filtro_rapido(df_b, ["versao"], escolha_versao, "Todos")
@@ -511,22 +435,23 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     df_b_bp = df_b_base[mask_is_bp] if mask_is_bp.any() else df_b
     df_b_fc = df_b_base[mask_is_fc] if mask_is_fc.any() else df_b
 
-    col_rem_r = next((c for c in df_r_filtrado.columns if any(t in c for t in ["remessa", "qtd"])), None)
-    col_rem_b = next((c for c in df_b.columns if any(t in c for t in ["remessa", "qtd"])), None)
-    col_frete_r = next((c for c in df_r_filtrado.columns if any(t in c for t in ["frete", "custo", "valor", "total"])), None)
-    col_frete_b = next((c for c in df_b.columns if any(t in c for t in ["frete", "custo", "valor", "total"])), None)
+    # =========================================================================
+    # SOMA DIRETA DA COLUNA QTD_REMESSAS
+    # =========================================================================
+    col_rem_r = "qtd_remessas" if "qtd_remessas" in df_r_filtrado.columns else next((c for c in df_r_filtrado.columns if "remessa" in c and "item" not in c), None)
+    col_rem_b = "qtd_remessas" if "qtd_remessas" in df_b.columns else next((c for c in df_b.columns if "remessa" in c and "item" not in c), None)
+
+    col_frete_r = "frete_realizado" if "frete_realizado" in df_r_filtrado.columns else next((c for c in df_r_filtrado.columns if any(t in c for t in ["frete", "custo", "valor", "total"])), None)
+    col_frete_b = "frete_planejado" if "frete_planejado" in df_b.columns else next((c for c in df_b.columns if any(t in c for t in ["frete", "custo", "valor", "total"])), None)
 
     tot_rem_b = df_b[col_rem_b].sum() if col_rem_b and not df_b.empty else 0.0
     tot_frete_b = df_b[col_frete_b].sum() if col_frete_b and not df_b.empty else 0.0
     cmu_forecast = (tot_frete_b / tot_rem_b) if tot_rem_b > 0 else 0.0
 
+    # Realiza a soma de qtd_remessas na base Real
     tot_rem_r = df_r_filtrado[col_rem_r].sum() if col_rem_r and not df_r_filtrado.empty else 0.0
     tot_frete_r = df_r_filtrado[col_frete_r].sum() if col_frete_r and not df_r_filtrado.empty else 0.0
     cmu_gerencial = (tot_frete_r / tot_rem_r) if tot_rem_r > 0 else 0.0
-
-    # Aviso se o BP ficou zerado
-    if tot_rem_b == 0 and not df_bp_raw.empty:
-        st.warning(f"⚠️ Atenção: Nenhuma linha do BP atendeu aos filtros selecionados (Período: {escolha_periodo}, Versão: {escolha_versao}, Aba: {titulo}).")
 
     def padronizar_chave_valor(val, tipo):
         s = str(val)
@@ -602,6 +527,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     col_m3.metric("Remessas Real", f"{tot_rem_r:,.0f}".replace(",", "."))
     col_m4.metric(f"Remessas {label_planejado}", f"{tot_rem_b:,.0f}".replace(",", "."))
 
+    # 1. GRÁFICO WATERFALL
     fig = go.Figure(go.Waterfall(
         name="Impactos CMU",
         orientation="v",
@@ -630,6 +556,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
 
     st.plotly_chart(fig, use_container_width=True, key=f"waterfall_{slug_id}")
 
+    # --- 2. AUDITORIA POSICIONADA LOGO ABAIXO DO WATERFALL ---
     st.markdown("### 🔎 Painéis de Auditoria por Campo")
 
     if modo_praca:
@@ -693,6 +620,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 st.write(f"5. (+/-) Demais Impactos: {formatar_moeda(demais_impactos, 4)}")
                 st.write(f"**(=) CMU Gerencial Fechado:** {formatar_moeda(cmu_gerencial, 4)}")
 
+    # --- 3. GRÁFICOS: TRANSPORTADOR (CMU vs BP vs FC) ---
     col_transp_r = next((c for c in df_r_filtrado.columns if "transportador" in c), None)
     col_transp_b = next((c for c in df_b_base.columns if "transportador" in c), None)
 
@@ -786,6 +714,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             )
             st.plotly_chart(fig_var, use_container_width=True, key=f"var_transp_{slug_id}")
 
+    # --- 4. SEÇÃO: PRAÇA DE COLETA OU CONTRATO ---
     if modo_praca:
         col_praca_r = "cidade_class" if "cidade_class" in df_r_filtrado.columns else next((c for c in df_r_filtrado.columns if c in ["cidade_class", "cidade"]), None)
         col_praca_b = "cidade" if "cidade" in df_b_base.columns else next((c for c in df_b_base.columns if c in ["cidade", "cidade_class"]), None)
@@ -974,6 +903,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 )
                 st.plotly_chart(fig_var_con, use_container_width=True, key=f"var_con_{slug_id}")
 
+    # --- 5. GRÁFICOS DE FAIXA DE PESO (CMU vs BP vs FC) ---
     col_peso_r = next((c for c in df_r_filtrado.columns if "faixa_peso" in c or "peso" in c), None)
     col_peso_b = next((c for c in df_b_base.columns if "faixa_peso" in c or "peso" in c), None)
 
@@ -1020,7 +950,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
         df_bp_p["cmu_bp"] = np.where(df_bp_p["rem_bp"] > 0, df_bp_p["frete_bp"] / df_bp_p["rem_bp"], 0.0)
 
         df_fc_p = df_b_fc.groupby(col_peso_b, as_index=False).agg(frete_fc=(col_frete_b, "sum"), rem_fc=(col_rem_b, "sum"))
-        df_fc_p["cmu_fc"] = np.where(df_fc_p["rem_fc"] > 0, df_fc_p["frete_fc"] / df_fc_pr["rem_fc"], 0.0)
+        df_fc_p["cmu_fc"] = np.where(df_fc_p["rem_fc"] > 0, df_fc_p["frete_fc"] / df_fc_p["rem_fc"], 0.0)
 
         m_p = pd.merge(df_r_p, df_bp_p, left_on=col_peso_r, right_on=col_peso_b, how="outer")
         m_p = pd.merge(m_p, df_fc_p, left_on=col_peso_r, right_on=col_peso_b, how="outer").fillna(0.0)
@@ -1110,6 +1040,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             )
             st.plotly_chart(fig_var_p, use_container_width=True, key=f"var_p_{slug_id}")
 
+    # --- 6. ANÁLISE GEOGRÁFICA ---
     st.markdown("### 🗺️ Análise Geográfica por Estado (UF)")
 
     if "uf_norm" in df_r_filtrado.columns and "uf_norm" in df_b_base.columns and not df_r_filtrado.empty:
@@ -1231,14 +1162,15 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
         )
         st.plotly_chart(fig_geo3, use_container_width=True, key=f"bar_geo_fc_{slug_id}")
 
+    # --- 7. SÉRIE HISTÓRICA: ITENS POR REMESSA ---
     df_r_puro_aba = df_resumo_raw
     if etapa_filtro:
         df_r_puro_aba = aplicar_filtro_rapido(df_r_puro_aba, ["etapa"], etapa_filtro)
     if tipo_filtro:
         df_r_puro_aba = aplicar_filtro_rapido(df_r_puro_aba, ["tipo"], tipo_filtro)
 
-    col_itens_hist = next((c for c in df_r_puro_aba.columns if c in ["qtd_itens", "qtd_item", "itens", "item"]), None)
-    col_rem_hist = next((c for c in df_r_puro_aba.columns if c in ["qtd_remessas", "qtd_remessa", "remessas", "remessa"]), None)
+    col_itens_hist = "qtd_itens" if "qtd_itens" in df_r_puro_aba.columns else next((c for c in df_r_puro_aba.columns if "item" in c), None)
+    col_rem_hist = "qtd_remessas" if "qtd_remessas" in df_r_puro_aba.columns else next((c for c in df_r_puro_aba.columns if "remessa" in c), None)
     col_per_hist = next((c for c in df_r_puro_aba.columns if c in ["mes_ano_filtro", "mes_ano", "periodo"]), None)
 
     if col_itens_hist and col_rem_hist and col_per_hist and not df_r_puro_aba.empty:
@@ -1318,6 +1250,7 @@ aba_selecionada = st.radio(
 if aba_selecionada == "📊 Geral":
     renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="Visão Consolidada", modo_praca=False)
 
+    # --- SEÇÃO EXCLUSIVA DE ERROS NA ABA GERAL ---
     st.markdown("---")
     st.markdown("### 🚨 Relatórios de Erros Operacionais")
 
@@ -1373,6 +1306,7 @@ elif aba_selecionada == "⚠️ INSUCESSO RETAIL":
 elif aba_selecionada == "⛔ INSUCESSO FULL":
     renderizar_modulo(etapa_filtro="INSUCESSO", tipo_filtro="RETAIL", titulo="INSUCESSO FULL", modo_praca=False)
 
+# --- 8. MEMORIAL DE CÁLCULO ---
 st.markdown("---")
 st.markdown("### 📑 Memorial de Cálculo: Entenda seus Indicadores de Operação")
 
