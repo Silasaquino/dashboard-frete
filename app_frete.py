@@ -263,12 +263,15 @@ except Exception as e:
     st.error(f"Erro ao carregar bases: {e}")
     st.stop()
 
-def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
+# =========================================================================
+# EXTRAÇÃO DE OPÇÕES PARA MULTISELECT (SEM 'TODOS' NA LISTA)
+# =========================================================================
+def extrair_opcoes_multi(termos_r, termos_b=None, exato=False):
     if termos_b is None:
         termos_b = termos_r
         
     valores = set()
-    lixo = {"", "NAN", "NONE", "NULL", "TOTAL", "SUBTOTAL", "GERAL", "#N/A", "#REF!", "#VALOR!", "-", "--", "0", "0.0"}
+    lixo = {"", "NAN", "NONE", "NULL", "TOTAL", "SUBTOTAL", "GERAL", "#N/A", "#REF!", "#VALOR!", "-", "--", "0", "0.0", "TODOS"}
 
     if exato:
         col_r = next((c for c in df_resumo_raw.columns if c in termos_r), None)
@@ -285,27 +288,28 @@ def extrair_opcoes(termos_r, termos_b=None, padrao="Todos", exato=False):
         vals_b = df_bp_raw[col_b].unique()
         valores.update([str(v).strip().upper() for v in vals_b if str(v).strip().upper() not in lixo and not str(v).strip().startswith("=")])
 
-    return [padrao] + sorted(list(valores))
+    return sorted(list(valores))
 
-# --- BARRA LATERAL: INICIALIZADA LIMPA EM "TODOS" / "GERAL (TODOS)" ---
+# --- BARRA LATERAL: MULTISELECT (VAZIO = TODOS) ---
 st.sidebar.title("🚚 Filtros Gerais")
 
-opcoes_periodo = extrair_opcoes(["mes_ano_filtro", "mes_ano", "periodo"], padrao="Geral (Todos)")
-opcoes_periodo = [p for p in opcoes_periodo if p == "Geral (Todos)" or bool(re.match(r"^\d{4}-\d{2}$", p))]
-escolha_periodo = st.sidebar.selectbox("📅 Período (mes_ano_filtro):", opcoes_periodo, index=0)
+opcoes_periodo = extrair_opcoes_multi(["mes_ano_filtro", "mes_ano", "periodo"])
+opcoes_periodo = [p for p in opcoes_periodo if bool(re.match(r"^\d{4}-\d{2}$", p))]
+escolha_periodo = st.sidebar.multiselect("📅 Período (mes_ano_filtro):", opcoes_periodo, default=[], placeholder="Todos os períodos")
 
-opcoes_versao = extrair_opcoes(["versao"])
-escolha_versao = st.sidebar.selectbox("📌 Versão:", opcoes_versao, index=0)
+opcoes_versao = extrair_opcoes_multi(["versao"])
+escolha_versao = st.sidebar.multiselect("📌 Versão:", opcoes_versao, default=[], placeholder="Todas as versões")
 
-escolha_sheet_title = st.sidebar.selectbox("📑 Sheet Title:", extrair_opcoes(["sheet_title", "sheet"]), index=0)
+opcoes_sheet_title = extrair_opcoes_multi(["sheet_title", "sheet"])
+escolha_sheet_title = st.sidebar.multiselect("📑 Sheet Title:", opcoes_sheet_title, default=[], placeholder="Todos")
 
-opcoes_cobranca = extrair_opcoes(["case_rw"], ["tipo_cobranca"])
-escolha_cobranca = st.sidebar.selectbox("📦 Cobrança (case_rw):", opcoes_cobranca, index=0)
+opcoes_cobranca = extrair_opcoes_multi(["case_rw"], ["tipo_cobranca"])
+escolha_cobranca = st.sidebar.multiselect("📦 Cobrança (case_rw):", opcoes_cobranca, default=[], placeholder="Todos")
 
-escolha_transportador = st.sidebar.selectbox("🚛 Transportador:", extrair_opcoes(["transportador"]), index=0)
-escolha_contrato = st.sidebar.selectbox("📄 Contrato:", extrair_opcoes(["contrato"]), index=0)
-escolha_faixa_peso = st.sidebar.selectbox("⚖️ Faixa de Peso:", extrair_opcoes(["faixa_peso", "peso"]), index=0)
-escolha_macroregiao = st.sidebar.selectbox("🗺️ Macroregião:", extrair_opcoes(["macroregiao"], exato=True), index=0)
+escolha_transportador = st.sidebar.multiselect("🚛 Transportador:", extrair_opcoes_multi(["transportador"]), default=[], placeholder="Todos")
+escolha_contrato = st.sidebar.multiselect("📄 Contrato:", extrair_opcoes_multi(["contrato"]), default=[], placeholder="Todos")
+escolha_faixa_peso = st.sidebar.multiselect("⚖️ Faixa de Peso:", extrair_opcoes_multi(["faixa_peso", "peso"]), default=[], placeholder="Todas")
+escolha_macroregiao = st.sidebar.multiselect("🗺️ Macroregião:", extrair_opcoes_multi(["macroregiao"], exato=True), default=[], placeholder="Todas")
 
 if st.sidebar.button("🔄 Atualizar Base"):
     st.cache_data.clear()
@@ -367,54 +371,66 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     df_r = df_resumo_raw
     df_b_raw_local = df_bp_raw
 
-    v_str = str(escolha_versao).strip().upper()
-    s_str = str(escolha_sheet_title).strip().upper()
-    if any(k in v_str for k in ["FC", "FORECAST", "8+4", "4+8"]) or s_str.endswith("FC"):
+    # Rótulo dinâmico BP vs FC
+    v_str = " ".join(escolha_versao).upper()
+    s_str = " ".join(escolha_sheet_title).upper()
+    if any(k in v_str for k in ["FC", "FORECAST", "8+4", "4+8"]) or any(k in s_str for k in ["FC"]):
         label_planejado = "FC"
     else:
         label_planejado = "BP"
 
-    def aplicar_filtro_rapido(df, termos, val, padrao="Todos", exato=False):
-        if str(val).strip().upper() != padrao.upper() and not df.empty:
+    # =========================================================================
+    # FUNÇÃO DE FILTRO ADAPTADA PARA LISTAS DO MULTISELECT (.isin())
+    # =========================================================================
+    def aplicar_filtro_multi(df, termos, lista_valores, exato=False):
+        if lista_valores and not df.empty:
             if exato:
                 col_alvo = next((c for c in df.columns if c in termos), None)
             else:
                 col_alvo = next((c for c in df.columns if any(t in c for t in termos)), None)
             if col_alvo:
+                valores_set = {str(v).strip().upper() for v in lista_valores}
+                return df[df[col_alvo].astype(str).str.strip().str.upper().isin(valores_set)]
+        return df
+
+    def aplicar_filtro_texto_fixo(df, termos, val):
+        if val and not df.empty:
+            col_alvo = next((c for c in df.columns if any(t in c for t in termos)), None)
+            if col_alvo:
                 return df[df[col_alvo].astype(str).str.strip().str.upper() == str(val).strip().upper()]
         return df
 
-    # Base filtrada para a visão principal (inclui os filtros da barra lateral)
+    # Base filtrada para a visão principal (aplica seleções múltiplas)
     df_r_filtrado = df_r
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["sheet_title", "sheet"], escolha_sheet_title, "Todos")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["case_rw"], escolha_cobranca, "Todos")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["transportador"], escolha_transportador, "Todos")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["contrato"], escolha_contrato, "Todos")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["faixa_peso", "peso"], escolha_faixa_peso, "Todos")
-    df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["macroregiao"], escolha_macroregiao, "Todos", exato=True)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["sheet_title", "sheet"], escolha_sheet_title)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["case_rw"], escolha_cobranca)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["transportador"], escolha_transportador)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["contrato"], escolha_contrato)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["faixa_peso", "peso"], escolha_faixa_peso)
+    df_r_filtrado = aplicar_filtro_multi(df_r_filtrado, ["macroregiao"], escolha_macroregiao, exato=True)
 
     if etapa_filtro:
-        df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["etapa"], etapa_filtro)
+        df_r_filtrado = aplicar_filtro_texto_fixo(df_r_filtrado, ["etapa"], etapa_filtro)
     if tipo_filtro:
-        df_r_filtrado = aplicar_filtro_rapido(df_r_filtrado, ["tipo"], tipo_filtro)
+        df_r_filtrado = aplicar_filtro_texto_fixo(df_r_filtrado, ["tipo"], tipo_filtro)
 
-    # Filtros Comuns em BP
-    df_b_base = aplicar_filtro_rapido(df_b_raw_local, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo, "Geral (Todos)")
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_cobranca"], escolha_cobranca, "Todos")
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["transportador"], escolha_transportador, "Todos")
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["contrato"], escolha_contrato, "Todos")
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["faixa_peso", "peso"], escolha_faixa_peso, "Todos")
-    df_b_base = aplicar_filtro_rapido(df_b_base, ["macroregiao"], escolha_macroregiao, "Todos", exato=True)
+    # Filtros em BP
+    df_b_base = aplicar_filtro_multi(df_b_raw_local, ["mes_ano_filtro", "mes_ano", "periodo"], escolha_periodo)
+    df_b_base = aplicar_filtro_multi(df_b_base, ["tipo_cobranca"], escolha_cobranca)
+    df_b_base = aplicar_filtro_multi(df_b_base, ["transportador"], escolha_transportador)
+    df_b_base = aplicar_filtro_multi(df_b_base, ["contrato"], escolha_contrato)
+    df_b_base = aplicar_filtro_multi(df_b_base, ["faixa_peso", "peso"], escolha_faixa_peso)
+    df_b_base = aplicar_filtro_multi(df_b_base, ["macroregiao"], escolha_macroregiao, exato=True)
 
     if etapa_filtro:
-        df_b_base = aplicar_filtro_rapido(df_b_base, ["etapa"], etapa_filtro)
+        df_b_base = aplicar_filtro_texto_fixo(df_b_base, ["etapa"], etapa_filtro)
     if tipo_filtro:
-        df_b_base = aplicar_filtro_rapido(df_b_base, ["tipo_expedicao"], tipo_filtro)
+        df_b_base = aplicar_filtro_texto_fixo(df_b_base, ["tipo_expedicao"], tipo_filtro)
 
     df_b = df_b_base
-    df_b = aplicar_filtro_rapido(df_b, ["versao"], escolha_versao, "Todos")
-    df_b = aplicar_filtro_rapido(df_b, ["sheet_title", "sheet"], escolha_sheet_title, "Todos")
+    df_b = aplicar_filtro_multi(df_b, ["versao"], escolha_versao)
+    df_b = aplicar_filtro_multi(df_b, ["sheet_title", "sheet"], escolha_sheet_title)
 
     col_sheet_b = next((c for c in df_b_base.columns if "sheet" in c), None)
     col_versao_b = next((c for c in df_b_base.columns if "versao" in c), None)
@@ -851,7 +867,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
             df_bp_con["cmu_bp"] = np.where(df_bp_con["rem_bp"] > 0, df_bp_con["frete_bp"] / df_bp_con["rem_bp"], 0.0)
 
             df_fc_con = df_b_fc.groupby(col_con_b, as_index=False).agg(frete_fc=(col_frete_b, "sum"), rem_fc=(col_rem_b, "sum"))
-            df_fc_con["cmu_fc"] = np.where(df_fc_con["rem_fc"] > 0, df_fc_con["frete_fc"] / df_fc_con["rem_fc"], 0.0)
+            df_fc_con["cmu_fc"] = np.where(df_fc_con["rem_fc"] > 0, df_fc_con["frete_fc"] / df_fc_fc["rem_fc"], 0.0) if 'df_fc_fc' in locals() else np.where(df_fc_con["rem_fc"] > 0, df_fc_con["frete_fc"] / df_fc_con["rem_fc"], 0.0)
 
             m_con = pd.merge(df_r_con, df_bp_con, left_on=col_con_r, right_on=col_con_b, how="outer")
             m_con = pd.merge(m_con, df_fc_con, left_on=col_con_r, right_on=col_con_b, how="outer").fillna(0.0)
@@ -1019,6 +1035,7 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
                 name="vs FC (%)",
                 text=[f"{v:.2f}%" if pd.notnull(v) and v != 0 else "" for v in m_p["vs_fc_pct"]],
                 textposition="outside",
+                textfont=dict(size=10),
                 marker_color="#80397B"
             ))
             fig_var_p.update_layout(
@@ -1160,9 +1177,9 @@ def renderizar_modulo(etapa_filtro=None, tipo_filtro=None, titulo="", modo_praca
     # --- 7. SÉRIE HISTÓRICA: ITENS POR REMESSA ---
     df_r_puro_aba = df_resumo_raw
     if etapa_filtro:
-        df_r_puro_aba = aplicar_filtro_rapido(df_r_puro_aba, ["etapa"], etapa_filtro)
+        df_r_puro_aba = aplicar_filtro_texto_fixo(df_r_puro_aba, ["etapa"], etapa_filtro)
     if tipo_filtro:
-        df_r_puro_aba = aplicar_filtro_rapido(df_r_puro_aba, ["tipo"], tipo_filtro)
+        df_r_puro_aba = aplicar_filtro_texto_fixo(df_r_puro_aba, ["tipo"], tipo_filtro)
 
     col_itens_hist = "qtd_itens" if "qtd_itens" in df_r_puro_aba.columns else next((c for c in df_r_puro_aba.columns if "item" in c), None)
     col_rem_hist = "qtd_remessas" if "qtd_remessas" in df_r_puro_aba.columns else next((c for c in df_r_puro_aba.columns if "remessa" in c), None)
