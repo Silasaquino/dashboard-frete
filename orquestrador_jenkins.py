@@ -35,37 +35,52 @@ CONFIG_JOBS = {
     "reversa": {
         "nome": "Operação Reversa",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.a_operation_returns/api/json",
-        "script": "atualizar_base_reversa.py"
+        "scripts": ["atualizar_base_reversa.py"]
     },
     "vendas": {
         "nome": "Vendas Outbound",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_showcase.c_operation_outbound_delivery/api/json",
-        "script": "atualizar_base_vendas.py"
+        "scripts": ["atualizar_base_vendas.py"]
     },
     "cockpit_doca": {
         "nome": "Cockpit Doca",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_raw_sap_ewm.dafiti_cockpit/api/json",
-        "script": "cockpit_doca.py"
+        "scripts": ["cockpit_doca.py"]
     },
     "frete_milkrun": {
         "nome": "Controle de Frete (Milkrun)",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_coleta_milkrun/api/json",
-        "script": "controle_frete.py"
+        "scripts": ["controle_frete.py"]
     },
     "frete_envios": {
         "nome": "Controle de Frete (Envios)",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_envios/api/json",
-        "script": "controle_frete.py"
+        "scripts": ["controle_frete.py"]
     },
     "frete_reversa": {
         "nome": "Controle de Frete (Reversa / Devolução)",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.controle_frete_reversa_devolucao/api/json",
-        "script": "controle_frete.py"
+        "scripts": ["controle_frete.py"]
     },
     "bp_forecast": {
         "nome": "Envio BP Forecast",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_manual_input.transports_envio_bp_forecast/api/json",
-        "script": "controle_frete.py"
+        "scripts": ["controle_frete.py"]
+    },
+    "operacao_producao": {
+        "nome": "Operação Produção",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_NQ_curated_data.operation_production/api/json",
+        "scripts": ["atualizar_producao_individual.py", "atualizar_producao.py"]
+    },
+    "absenteismo_operacao": {
+        "nome": "Absenteísmo Operação LEAP",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_fabric.m_abs_cd_operacao_leap/api/json",
+        "scripts": ["atualizar_absenteismo.py"]
+    },
+    "historico_absenteismo": {
+        "nome": "Histórico Absenteísmo LEAP",
+        "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_fabric.m_historico_abs_cd_operacao_leap/api/json",
+        "scripts": ["atualizar_absenteismo.py"]
     }
 }
 
@@ -154,30 +169,32 @@ def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
     atualizar_arquivo_log(estado)
 
 
-def executar_script(nome_script):
-    inicio = time.time()
-    try:
-        env_utf8 = os.environ.copy()
-        env_utf8["PYTHONIOENCODING"] = "utf-8"
+def executar_scripts(lista_scripts):
+    """Executa um ou múltiplos scripts Python em sequência. Retorna (sucesso_geral, duracao_total)."""
+    inicio_total = time.time()
+    env_utf8 = os.environ.copy()
+    env_utf8["PYTHONIOENCODING"] = "utf-8"
 
-        resultado = subprocess.run(
-            [sys.executable, nome_script],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env_utf8,
-            check=False
-        )
-        duracao = round(time.time() - inicio, 1)
-
-        if resultado.returncode == 0:
-            return True, duracao
-        else:
+    for script in lista_scripts:
+        try:
+            resultado = subprocess.run(
+                [sys.executable, script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env_utf8,
+                check=False
+            )
+            if resultado.returncode != 0:
+                duracao = round(time.time() - inicio_total, 1)
+                return False, duracao
+        except Exception:
+            duracao = round(time.time() - inicio_total, 1)
             return False, duracao
 
-    except Exception:
-        return False, round(time.time() - inicio, 1)
+    duracao = round(time.time() - inicio_total, 1)
+    return True, duracao
 
 
 # ==========================================
@@ -185,7 +202,7 @@ def executar_script(nome_script):
 # ==========================================
 def checar_job(chave_job, config, estado):
     url = config["url_api"]
-    script_alvo = config["script"]
+    scripts_alvo = config["scripts"]
 
     if "builds" not in estado:
         estado["builds"] = {}
@@ -202,7 +219,7 @@ def checar_job(chave_job, config, estado):
             build_atual = ultimo_build_sucesso.get("number")
             ultimo_processado = estado["builds"].get(chave_job)
 
-            # Primeira execução
+            # Primeira execução / chave nova
             if ultimo_processado is None or ultimo_processado == 0:
                 estado["builds"][chave_job] = build_atual
                 salvar_estado(estado)
@@ -210,7 +227,7 @@ def checar_job(chave_job, config, estado):
 
             # Novo build detectado
             elif build_atual > ultimo_processado:
-                sucesso, duracao = executar_script(script_alvo)
+                sucesso, duracao = executar_scripts(scripts_alvo)
                 status_txt = "SUCESSO" if sucesso else "FALHA"
                 registrar_execucao_historico(chave_job, build_atual, duracao, status_txt, estado)
 

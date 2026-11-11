@@ -14,3 +14,4 @@ requests
 oauth2client 
 google-auth
 numpy
+sqlalchemy
