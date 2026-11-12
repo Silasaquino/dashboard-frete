@@ -75,12 +75,12 @@ CONFIG_JOBS = {
     "absenteismo_operacao": {
         "nome": "Absenteísmo Operação LEAP",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_fabric.m_abs_cd_operacao_leap/api/json",
-        "scripts": ["atualizar_absenteismo.py"]
+        "scripts": ["atualizar_absenteismo.py", "atualizar_abs_detalhado.py"]
     },
     "historico_absenteismo": {
         "nome": "Histórico Absenteísmo LEAP",
         "url_api": "http://hanger.dafiticorp.com:8080/jenkins/job/GLOVE_FILE_fabric.m_historico_abs_cd_operacao_leap/api/json",
-        "scripts": ["atualizar_absenteismo.py"]
+        "scripts": ["atualizar_absenteismo.py", "atualizar_abs_detalhado.py"]
     }
 }
 
@@ -170,13 +170,14 @@ def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
 
 
 def executar_scripts(lista_scripts):
-    """Executa um ou múltiplos scripts Python em sequência. Retorna (sucesso_geral, duracao_total)."""
+    """Executa scripts sequencialmente com timeout protetor contra travamentos infinitos."""
     inicio_total = time.time()
     env_utf8 = os.environ.copy()
     env_utf8["PYTHONIOENCODING"] = "utf-8"
 
     for script in lista_scripts:
         try:
+            # Trava com tempo limite de 30 minutos por script
             resultado = subprocess.run(
                 [sys.executable, script],
                 capture_output=True,
@@ -184,7 +185,8 @@ def executar_scripts(lista_scripts):
                 encoding="utf-8",
                 errors="replace",
                 env=env_utf8,
-                check=False
+                check=False,
+                timeout=1800
             )
             if resultado.returncode != 0:
                 duracao = round(time.time() - inicio_total, 1)
@@ -219,21 +221,21 @@ def checar_job(chave_job, config, estado):
             build_atual = ultimo_build_sucesso.get("number")
             ultimo_processado = estado["builds"].get(chave_job)
 
-            # Primeira execução / chave nova
+            # Primeira checagem da chave
             if ultimo_processado is None or ultimo_processado == 0:
                 estado["builds"][chave_job] = build_atual
                 salvar_estado(estado)
                 registrar_execucao_historico(chave_job, build_atual, 0.0, "Inicializado", estado)
 
-            # Novo build detectado
+            # Novo build identificado
             elif build_atual > ultimo_processado:
                 sucesso, duracao = executar_scripts(scripts_alvo)
                 status_txt = "SUCESSO" if sucesso else "FALHA"
                 registrar_execucao_historico(chave_job, build_atual, duracao, status_txt, estado)
 
-                if sucesso:
-                    estado["builds"][chave_job] = build_atual
-                    salvar_estado(estado)
+                # Salva o build mesmo que falhe, para o orquestrador não ficar em loop na mesma falha
+                estado["builds"][chave_job] = build_atual
+                salvar_estado(estado)
 
     except Exception:
         pass
@@ -247,8 +249,11 @@ if __name__ == "__main__":
     atualizar_arquivo_log(estado)
 
     while True:
-        for chave, config in CONFIG_JOBS.items():
-            checar_job(chave, config, estado)
+        try:
+            for chave, config in CONFIG_JOBS.items():
+                checar_job(chave, config, estado)
+            atualizar_arquivo_log(estado)
+        except Exception as e:
+            print(f"Erro no ciclo: {e}")
 
-        atualizar_arquivo_log(estado)
         time.sleep(INTERVALO_CHECAGEM_SEGUNDOS)
