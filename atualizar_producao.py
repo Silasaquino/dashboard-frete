@@ -2,7 +2,8 @@
 Script: atualizar_producao.py
 Objetivo: Conectar ao Amazon Redshift lendo credenciais de .streamlit/secrets.toml,
           executar a query de produção incluindo a métrica 'media' (produtividade),
-          formatar números decimais com vírgula e carregar na aba 'BASE' do Google Sheets.
+          preservar data e hora em 'atualizacao_prod', formatar números decimais
+          com vírgula e carregar na aba 'BASE' do Google Sheets.
 """
 
 import os
@@ -39,7 +40,7 @@ NOME_ABA_BASE = "BASE"
 TAMANHO_LOTE = 10000
 
 # ==============================================================================
-# 3. QUERY SQL DE PRODUÇÃO (COM CAMPO 'MEDIA')
+# 3. QUERY SQL DE PRODUÇÃO (COM CAMPO 'MEDIA' E TIMESTAMP DE ATUALIZAÇÃO)
 # ==============================================================================
 QUERY_PRODUCAO = """
 select 
@@ -67,12 +68,12 @@ select
 		when setor_dados like ('%FF%') then 'FULL'
 		when setor_dados like ('%PESADO%') then 'PESADOS'
 		when setor_dados like ('%MILKRUN%') then 'MILKRUN'
-		when setor_dados in ('SHIPPING CROSS') then 'OUTBOUND_AS'
+		when setor_dados in ('SHIPPING CROSS') then 'PESADOS'
 		when setor_dados like ('%CQ%') then 'CONTROLE_QUALIDADE'
 		when setor_dados like ('%REVERSA%') then 'REVERSA'
 		when setor_dados in ('SEGREGADO') then 'SEGREGADO'
-		when setor_dados in ('SHIPPING LEVE', 'PICKING LEVE', 'PACKING LEVE', 'REC 2 LEVE') then 'OUTBOUND_LEVE'
-		when setor_dados in ('ARMAZENAMENTO LEVE', 'CONSOLIDAÇÃO LEVE', 'REC 1 LEVE') then 'INBOUND_LEVE'
+		when setor_dados in ('SHIPPING LEVE', 'PICKING LEVE', 'PACKING LEVE', 'CONSOLIDAÇÃO LEVE') then 'OUTBOUND_LEVE'
+		when setor_dados in ('ARMAZENAMENTO LEVE', 'REC 2 LEVE', 'REC 1 LEVE') then 'INBOUND_LEVE'
 		when setor_dados like ('FOTO/CONTEUDO') then 'FOTO/CONTEUDO'
 		else null	
 	end as definicacao_area,
@@ -87,11 +88,19 @@ select
 		when sum(qtd_realizada) = 0 or sum(qtd_realizada) is null then 0
 		else sum(qtd_realizada)::double precision / sum(total_horas)
 	end as media,
-	max(meta_area) as meta_area
+	coalesce (max(meta_area),0) as meta_area,
+    case 
+        when qtd_final > 0 and sum(total_horas) <= 0 then 'Existe produção, mas não temos horas'
+        when sum(total_horas) < 0 then 'Enviou mais horas do que recebeu'
+        when DATE_PART(DW, periodo) = 0 and turno_dados <> '3° LEAP' and total_pessoas > 0 then 'ABS preenchido no domingo'
+        else 'OK'
+    end as obs,
+    max(etl_load_date)::timestamp as atualizacao_prod
 from
 	curated_data.operation_production
 where 
 	considerar_producao = '1'
+    and periodo >= DATEADD(MONTH, -48, DATE_TRUNC('MONTH', CURRENT_DATE))
 group by 
     1, 2, 3, 4, 5, 6
 """
@@ -104,29 +113,38 @@ group by
 def formatar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
     Trata os tipos de dados do DataFrame:
-    1. Converte campos temporais para texto simples (YYYY-MM-DD).
-    2. Mantém todas as casas decimais com vírgula (,).
-    3. Trata valores nulos (NaN/None) deixando células vazias.
+    1. Preserva Data e Hora (YYYY-MM-DD HH:MM:SS) na coluna 'atualizacao_prod'.
+    2. Converte demais campos de data para texto simples (YYYY-MM-DD).
+    3. Mantém todas as casas decimais com vírgula (,).
+    4. Trata valores nulos (NaN/None) deixando células vazias.
     """
     df_formatado = df.copy()
 
-    # Formata colunas de datas nativas do Pandas
+    # 1. Formata colunas de datas/horas nativas do Pandas
     for col in df_formatado.select_dtypes(include=["datetime64", "datetimetz"]).columns:
-        df_formatado[col] = df_formatado[col].dt.strftime("%Y-%m-%d")
+        if col == "atualizacao_prod":
+            df_formatado[col] = df_formatado[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            df_formatado[col] = df_formatado[col].dt.strftime("%Y-%m-%d")
 
-    # Formata objetos date ou datetime isolados em colunas genéricas ('object')
+    # 2. Formata objetos date ou datetime isolados em colunas genéricas ('object')
     for col in df_formatado.select_dtypes(include=["object"]).columns:
-        df_formatado[col] = df_formatado[col].apply(
-            lambda valor: valor.strftime("%Y-%m-%d") if isinstance(valor, (datetime.date, datetime.datetime)) else valor
-        )
+        if col == "atualizacao_prod":
+            df_formatado[col] = df_formatado[col].apply(
+                lambda valor: valor.strftime("%Y-%m-%d %H:%M:%S") if isinstance(valor, (datetime.date, datetime.datetime)) else valor
+            )
+        else:
+            df_formatado[col] = df_formatado[col].apply(
+                lambda valor: valor.strftime("%Y-%m-%d") if isinstance(valor, (datetime.date, datetime.datetime)) else valor
+            )
 
-    # Converte números decimais (float) mantendo todas as casas decimais com vírgula
+    # 3. Converte números decimais (float) mantendo todas as casas decimais com vírgula
     for col in df_formatado.select_dtypes(include=["float64", "float32", "float"]).columns:
         df_formatado[col] = df_formatado[col].apply(
             lambda valor: str(valor).replace(".", ",") if pd.notnull(valor) else ""
         )
 
-    # Preenche qualquer outro valor nulo restante com texto vazio
+    # 4. Preenche qualquer outro valor nulo restante com texto vazio
     df_formatado = df_formatado.fillna("")
     return df_formatado
 
@@ -136,13 +154,17 @@ def atualizar_aba_google_sheets(planilha, nome_aba: str, df: pd.DataFrame, taman
     Garante a existência da aba, expande linhas se necessário, limpa dados anteriores
     e envia os dados particionados por lotes.
     """
-    try:
-        worksheet = planilha.worksheet(nome_aba)
-    except gspread.WorksheetNotFound:
+    worksheet = None
+    for aba in planilha.worksheets():
+        if aba.title.strip().upper() == nome_aba.strip().upper():
+            worksheet = aba
+            break
+
+    if worksheet is None:
         print(f"[{datetime.datetime.now()}] ⚠️ Aba '{nome_aba}' não encontrada. A criar aba...")
         worksheet = planilha.add_worksheet(title=nome_aba, rows=1000, cols=30)
 
-    print(f"[{datetime.datetime.now()}] 🧹 A limpar a aba '{nome_aba}'...")
+    print(f"[{datetime.datetime.now()}] 🧹 A limpar a aba '{worksheet.title}'...")
     worksheet.clear()
 
     matriz_dados = [df.columns.values.tolist()] + df.values.tolist()
@@ -154,21 +176,20 @@ def atualizar_aba_google_sheets(planilha, nome_aba: str, df: pd.DataFrame, taman
         print(f"[{datetime.datetime.now()}] 📐 A expandir planilha em +{linhas_adicionais} linhas...")
         worksheet.add_rows(linhas_adicionais)
 
-    print(f"[{datetime.datetime.now()}] 📤 A enviar {total_linhas:,} linhas para '{nome_aba}'...".replace(",", "."))
+    print(f"[{datetime.datetime.now()}] 📤 A enviar {total_linhas:,} linhas para '{worksheet.title}'...".replace(",", "."))
 
     for inicio in range(0, total_linhas, tamanho_lote):
         lote = matriz_dados[inicio : inicio + tamanho_lote]
         linha_inicio = inicio + 1
-        linha_fim = inicio + len(lote)
-        coluna_fim = gspread.utils.rowcol_to_a1(1, len(df.columns))[0]
-        intervalo = f"A{linha_inicio}:{coluna_fim}{linha_fim}"
+        celula_inicio = f"A{linha_inicio}"
 
         worksheet.update(
-            range_name=intervalo,
+            range_name=celula_inicio,
             values=lote,
             value_input_option="USER_ENTERED"
         )
 
+        linha_fim = inicio + len(lote)
         print(f"[{datetime.datetime.now()}] 📦 Lote de linhas {linha_inicio} a {linha_fim} gravado.")
         time.sleep(1)
 
@@ -200,7 +221,7 @@ def executar_automacao():
         return
 
     # Formatação dos dados
-    print(f"[{datetime.datetime.now()}] ⚙️ A formatar datas e números decimais com vírgula...")
+    print(f"[{datetime.datetime.now()}] ⚙️ A formatar datas, timestamps e números decimais com vírgula...")
     df_pronto = formatar_dataframe(df_producao)
 
     # Conexão e envio ao Google Sheets

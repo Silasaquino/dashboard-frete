@@ -4,7 +4,7 @@ import json
 import time
 import socket
 import subprocess
-from datetime import datetime
+from datetime import datetime, time as dt_time
 
 # ==========================================
 # TRAVA DE INSTÂNCIA ÚNICA (Evita processos fantasmas)
@@ -24,12 +24,24 @@ except ImportError:
     sys.exit(1)
 
 # ==========================================
-# 1. CONFIGURAÇÕES DOS JOBS E SCRIPTS
+# 1. CONFIGURAÇÕES GERAIS E JANELAS HORÁRIAS
 # ==========================================
 JENKINS_AUTH = None  # Se necessário: ("utilizador", "token_ou_senha")
 INTERVALO_CHECAGEM_SEGUNDOS = 300  # 5 minutos
 ARQUIVO_ESTADO = "jenkins_builds_processados.json"
 ARQUIVO_LOG = "orquestrador.log"
+
+# Janela de monitoramento do Jenkins (06:00:00 até 23:59:59)
+HORA_INICIO_JENKINS = dt_time(6, 0, 0)
+HORA_FIM_JENKINS = dt_time(23, 59, 59)
+
+# Configuração da tarefa diária agendada (a partir das 01:00:00)
+TAREFA_DIARIA_SCRAPER = {
+    "chave": "scraper_dafiti",
+    "nome": "Scraper Dafiti (Consulta Item Site)",
+    "hora_inicio": dt_time(1, 0, 0),
+    "scripts": ["scraper_dafiti.py"]
+}
 
 CONFIG_JOBS = {
     "reversa": {
@@ -91,10 +103,13 @@ def carregar_estado():
     if os.path.exists(ARQUIVO_ESTADO):
         try:
             with open(ARQUIVO_ESTADO, "r", encoding="utf-8") as f:
-                return json.load(f)
+                dados = json.load(f)
+                if "tarefas_diarias" not in dados:
+                    dados["tarefas_diarias"] = {}
+                return dados
         except Exception:
             pass
-    return {"builds": {}, "historico": {}}
+    return {"builds": {}, "historico": {}, "tarefas_diarias": {}}
 
 
 def salvar_estado(estado):
@@ -106,17 +121,43 @@ def salvar_estado(estado):
 
 
 def atualizar_arquivo_log(estado):
-    """Reescreve o orquestrador.log mantendo estritamente as 2 últimas execuções de cada tabela."""
-    hora_agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    """Reescreve o orquestrador.log mantendo as 2 últimas execuções de cada tarefa e janela ativa."""
+    agora = datetime.now()
+    hora_agora_str = agora.strftime("%d/%m/%Y %H:%M:%S")
+    hora_atual = agora.time()
     historico = estado.get("historico", {})
+
+    em_janela_jenkins = HORA_INICIO_JENKINS <= hora_atual <= HORA_FIM_JENKINS
+    status_janela = "ATIVO (06:00 às 23:59)" if em_janela_jenkins else "PAUSADO (Aguardando 06:00)"
 
     linhas = [
         "==================================================================",
-        f" PAINEL DE MONITORAMENTO JENKINS (Última Checagem: {hora_agora})",
+        f" PAINEL DE MONITORAMENTO JENKINS (Última Checagem: {hora_agora_str})",
+        f" Status Jenkins: {status_janela}",
         "==================================================================",
         ""
     ]
 
+    # 1. Bloco da Tarefa Diária (Scraper)
+    chave_scraper = TAREFA_DIARIA_SCRAPER["chave"]
+    nome_scraper = TAREFA_DIARIA_SCRAPER["nome"]
+    reg_scraper = historico.get(chave_scraper, [])
+
+    linhas.append(f"🕷️ {nome_scraper.upper()} (Diário a partir das 01:00):")
+    if not reg_scraper:
+        linhas.append("   (Aguardando primeira execução às 01:00)")
+    elif len(reg_scraper) == 1:
+        r = reg_scraper[0]
+        linhas.append(f"   • ÚLTIMA VEZ:    {r['data_hora']} | Execução: {r['build']} | Duração: {r['duracao']}s | Status: {r['status']}")
+        linhas.append("   • PENÚLTIMA VEZ: (Aguardando próxima execução diária)")
+    else:
+        penultima = reg_scraper[0]
+        ultima = reg_scraper[1]
+        linhas.append(f"   • PENÚLTIMA VEZ: {penultima['data_hora']} | Execução: {penultima['build']} | Duração: {penultima['duracao']}s | Status: {penultima['status']}")
+        linhas.append(f"   • ÚLTIMA VEZ:    {ultima['data_hora']} | Execução: {ultima['build']} | Duração: {ultima['duracao']}s | Status: {ultima['status']}")
+    linhas.append("")
+
+    # 2. Blocos das Esteiras Jenkins
     for chave, config in CONFIG_JOBS.items():
         nome = config["nome"]
         registros = historico.get(chave, [])
@@ -146,7 +187,7 @@ def atualizar_arquivo_log(estado):
         print(f"Erro ao atualizar orquestrador.log: {e}")
 
 
-def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
+def registrar_execucao_historico(chave_job, identificador_build, duracao, status, estado):
     """Garante que a lista mantém apenas os 2 últimos registros na memória e no log."""
     if "historico" not in estado:
         estado["historico"] = {}
@@ -155,7 +196,7 @@ def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
 
     novo_registro = {
         "data_hora": datetime.now().strftime("%d/%m/%Y às %H:%M:%S"),
-        "build": build_num,
+        "build": identificador_build,
         "duracao": duracao,
         "status": status
     }
@@ -169,7 +210,7 @@ def registrar_execucao_historico(chave_job, build_num, duracao, status, estado):
     atualizar_arquivo_log(estado)
 
 
-def executar_scripts(lista_scripts):
+def executar_scripts(lista_scripts, timeout_segundos=1800):
     """Executa scripts sequencialmente com timeout protetor contra travamentos infinitos."""
     inicio_total = time.time()
     env_utf8 = os.environ.copy()
@@ -177,7 +218,6 @@ def executar_scripts(lista_scripts):
 
     for script in lista_scripts:
         try:
-            # Trava com tempo limite de 30 minutos por script
             resultado = subprocess.run(
                 [sys.executable, script],
                 capture_output=True,
@@ -186,7 +226,7 @@ def executar_scripts(lista_scripts):
                 errors="replace",
                 env=env_utf8,
                 check=False,
-                timeout=1800
+                timeout=timeout_segundos
             )
             if resultado.returncode != 0:
                 duracao = round(time.time() - inicio_total, 1)
@@ -200,8 +240,35 @@ def executar_scripts(lista_scripts):
 
 
 # ==========================================
-# 3. VERIFICAÇÃO DO JENKINS
+# 3. VERIFICAÇÃO DE TAREFAS AGENDADAS E JENKINS
 # ==========================================
+def checar_tarefa_diaria_scraper(estado):
+    """Executa o scraper_dafiti.py uma vez por dia a partir das 01:00:00."""
+    agora = datetime.now()
+    hora_atual = agora.time()
+    data_hoje_str = agora.strftime("%Y-%m-%d")
+
+    chave = TAREFA_DIARIA_SCRAPER["chave"]
+    hora_alvo = TAREFA_DIARIA_SCRAPER["hora_inicio"]
+    scripts_alvo = TAREFA_DIARIA_SCRAPER["scripts"]
+
+    if "tarefas_diarias" not in estado:
+        estado["tarefas_diarias"] = {}
+
+    ultima_data_executada = estado["tarefas_diarias"].get(chave)
+
+    # Dispara se já passou das 01:00:00 e ainda não rodou hoje
+    if hora_atual >= hora_alvo and ultima_data_executada != data_hoje_str:
+        # Marca a data antes/durante para evitar disparos repetidos
+        estado["tarefas_diarias"][chave] = data_hoje_str
+        salvar_estado(estado)
+
+        # Timeout ampliado para 3 horas (10800s) caso o web scraping demore
+        sucesso, duracao = executar_scripts(scripts_alvo, timeout_segundos=10800)
+        status_txt = "SUCESSO" if sucesso else "FALHA"
+        registrar_execucao_historico(chave, agora.strftime("%d/%m/%Y"), duracao, status_txt, estado)
+
+
 def checar_job(chave_job, config, estado):
     url = config["url_api"]
     scripts_alvo = config["scripts"]
@@ -229,7 +296,7 @@ def checar_job(chave_job, config, estado):
 
             # Novo build identificado
             elif build_atual > ultimo_processado:
-                sucesso, duracao = executar_scripts(scripts_alvo)
+                sucesso, duracao = executar_scripts(scripts_alvo, timeout_segundos=1800)
                 status_txt = "SUCESSO" if sucesso else "FALHA"
                 registrar_execucao_historico(chave_job, build_atual, duracao, status_txt, estado)
 
@@ -250,8 +317,17 @@ if __name__ == "__main__":
 
     while True:
         try:
-            for chave, config in CONFIG_JOBS.items():
-                checar_job(chave, config, estado)
+            agora = datetime.now()
+            hora_atual = agora.time()
+
+            # 1. Verifica tarefa diária do Scraper (a partir das 01:00:00)
+            checar_tarefa_diaria_scraper(estado)
+
+            # 2. Verifica esteiras do Jenkins apenas entre 06:00:00 e 23:59:59
+            if HORA_INICIO_JENKINS <= hora_atual <= HORA_FIM_JENKINS:
+                for chave, config in CONFIG_JOBS.items():
+                    checar_job(chave, config, estado)
+
             atualizar_arquivo_log(estado)
         except Exception as e:
             print(f"Erro no ciclo: {e}")
