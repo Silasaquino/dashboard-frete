@@ -35,11 +35,12 @@ ARQUIVO_LOG = "orquestrador.log"
 HORA_INICIO_JENKINS = dt_time(6, 0, 0)
 HORA_FIM_JENKINS = dt_time(23, 59, 59)
 
-# Configuração da tarefa diária agendada (a partir das 01:00:00)
+# Configuração da tarefa diária agendada (madrugada: 00:00:00 até 06:00:00)
 TAREFA_DIARIA_SCRAPER = {
     "chave": "scraper_dafiti",
     "nome": "Scraper Dafiti (Consulta Item Site)",
-    "hora_inicio": dt_time(1, 0, 0),
+    "hora_inicio": dt_time(0, 0, 0),
+    "hora_fim": dt_time(6, 0, 0),
     "scripts": ["scraper_dafiti.py"]
 }
 
@@ -143,9 +144,9 @@ def atualizar_arquivo_log(estado):
     nome_scraper = TAREFA_DIARIA_SCRAPER["nome"]
     reg_scraper = historico.get(chave_scraper, [])
 
-    linhas.append(f"🕷️ {nome_scraper.upper()} (Diário a partir das 01:00):")
+    linhas.append(f"🕷️ {nome_scraper.upper()} (Janela: 00:00 às 06:00):")
     if not reg_scraper:
-        linhas.append("   (Aguardando primeira execução às 01:00)")
+        linhas.append("   (Aguardando próxima janela da madrugada)")
     elif len(reg_scraper) == 1:
         r = reg_scraper[0]
         linhas.append(f"   • ÚLTIMA VEZ:    {r['data_hora']} | Execução: {r['build']} | Duração: {r['duracao']}s | Status: {r['status']}")
@@ -243,13 +244,14 @@ def executar_scripts(lista_scripts, timeout_segundos=1800):
 # 3. VERIFICAÇÃO DE TAREFAS AGENDADAS E JENKINS
 # ==========================================
 def checar_tarefa_diaria_scraper(estado):
-    """Executa o scraper_dafiti.py uma vez por dia a partir das 01:00:00."""
+    """Executa o scraper_dafiti.py apenas na janela da madrugada (00:00 às 06:00) sem bloquear o Jenkins."""
     agora = datetime.now()
     hora_atual = agora.time()
     data_hoje_str = agora.strftime("%Y-%m-%d")
 
     chave = TAREFA_DIARIA_SCRAPER["chave"]
-    hora_alvo = TAREFA_DIARIA_SCRAPER["hora_inicio"]
+    hora_inicio = TAREFA_DIARIA_SCRAPER["hora_inicio"]
+    hora_fim = TAREFA_DIARIA_SCRAPER["hora_fim"]
     scripts_alvo = TAREFA_DIARIA_SCRAPER["scripts"]
 
     if "tarefas_diarias" not in estado:
@@ -257,16 +259,27 @@ def checar_tarefa_diaria_scraper(estado):
 
     ultima_data_executada = estado["tarefas_diarias"].get(chave)
 
-    # Dispara se já passou das 01:00:00 e ainda não rodou hoje
-    if hora_atual >= hora_alvo and ultima_data_executada != data_hoje_str:
-        # Marca a data antes/durante para evitar disparos repetidos
+    # Só dispara se estiver dentro da janela (00:00 às 06:00) e ainda não rodou hoje
+    if (hora_inicio <= hora_atual <= hora_fim) and ultima_data_executada != data_hoje_str:
         estado["tarefas_diarias"][chave] = data_hoje_str
         salvar_estado(estado)
 
-        # Timeout ampliado para 3 horas (10800s) caso o web scraping demore
-        sucesso, duracao = executar_scripts(scripts_alvo, timeout_segundos=10800)
-        status_txt = "SUCESSO" if sucesso else "FALHA"
-        registrar_execucao_historico(chave, agora.strftime("%d/%m/%Y"), duracao, status_txt, estado)
+        env_utf8 = os.environ.copy()
+        env_utf8["PYTHONIOENCODING"] = "utf-8"
+
+        try:
+            for script in scripts_alvo:
+                # Roda em paralelo e com prioridade abaixo do normal no Windows para não tirar recursos do Jenkins
+                subprocess.Popen(
+                    [sys.executable, script],
+                    env=env_utf8,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0
+                )
+            registrar_execucao_historico(chave, agora.strftime("%d/%m/%Y"), 0.0, "INICIADO (MADRUGADA)", estado)
+        except Exception:
+            registrar_execucao_historico(chave, agora.strftime("%d/%m/%Y"), 0.0, "FALHA AO INICIAR", estado)
 
 
 def checar_job(chave_job, config, estado):
@@ -320,7 +333,7 @@ if __name__ == "__main__":
             agora = datetime.now()
             hora_atual = agora.time()
 
-            # 1. Verifica tarefa diária do Scraper (a partir das 01:00:00)
+            # 1. Verifica tarefa diária do Scraper (apenas entre 00:00:00 e 06:00:00)
             checar_tarefa_diaria_scraper(estado)
 
             # 2. Verifica esteiras do Jenkins apenas entre 06:00:00 e 23:59:59
